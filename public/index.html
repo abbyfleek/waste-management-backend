@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="">
+    <title>WASTE MANAGEMENT SYSTEM</title>
+    
+    <!-- SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+
+    <style>
+        .bg-grey {
+            background-color: #808080 !important;  /* Grey background */
+        }
+        input, button { margin: 5px; padding: 8px; }
+        #video { width: 300px; height: 200px; border: 1px solid #000; }
+        #status { margin-top: 10px; font-weight: bold; }
+        .error-message {
+            color: #dc3545;
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+        .success-message {
+            color: #28a745;
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+        .waste-level {
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+        .waste-level-fill {
+            height: 100%;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+        .waste-level-fill.warning {
+            background-color: #ffc107;
+        }
+        .waste-level-fill.danger {
+            background-color: #dc3545;
+        }
+        .loading-spinner {
+            display: none;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 0.2em solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spinner-border .75s linear infinite;
+        }
+        .password-strength {
+            height: 5px;
+            margin-top: 5px;
+            border-radius: 2px;
+        }
+        .password-strength.weak { background-color: #dc3545; width: 25%; }
+        .password-strength.medium { background-color: #ffc107; width: 50%; }
+        .password-strength.strong { background-color: #28a745; width: 100%; }
+    </style>
+</head>
+
+<body class="bg-grey">
+    <!-- Rest of your HTML content remains the same -->
+    <div class="container mt-5 text-center">
+        <img src="https://static.vecteezy.com/system/resources/thumbnails/007/950/584/small_2x/concept-save-the-world-save-environment-the-world-is-in-the-grass-of-the-green-bokeh-background-photo.jpg" 
+         alt="Green Environment" 
+         class="img-fluid mb-3" 
+         style="max-width: 250px; border-radius: 10px;">
+
+        <h2><strong>WASTE MANAGEMENT SYSTEM</strong></h2>
+ 
+        <!-- Login Section -->
+        <div id="loginSection">
+            <h3>Login</h3>
+            <form id="loginForm" onsubmit="return false;">
+                <input type="email" id="loginEmail" placeholder="Email" class="form-control mb-2" style="width: 40%; margin:auto;" required>
+                <input type="password" id="loginPassword" placeholder="Password" class="form-control mb-2" style="width: 40%; margin:auto;" required>
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="rememberMe">
+                    <label class="form-check-label" for="rememberMe">Remember me</label>
+                </div>
+                <button type="submit" onclick="login()" class="btn btn-primary w-30">
+                    <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
+                    Login
+                </button>
+                <p class="mt-3">
+                    Don't have an account? <a href="#" onclick="showSignup()">Signup</a> |
+                    <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+                </p>
+                <div id="loginMessage" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Signup Section -->
+        <div id="signupSection" style="display: none;">
+            <h3>Signup</h3>
+            <form id="signupForm" onsubmit="return false;">
+                <input type="email" id="signupEmail" placeholder="Signup Email" class="form-control mb-2" style="width: 40%; margin:auto;" required>
+                <input type="password" id="signupPassword" placeholder="Password" class="form-control mb-2" style="width: 40%; margin:auto;" required 
+                       oninput="checkPasswordStrength(this.value)">
+                <div class="password-strength"></div>
+                <small class="text-muted">Password must be at least 8 characters long and include numbers and special characters</small>
+                <button type="submit" onclick="register()" class="btn btn-primary w-30">
+                    <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
+                    Signup
+                </button>
+                <p class="mt-3">Already have an Account? <a href="#" onclick="showLogin()">Back to Login</a></p>
+                <div id="signupMessage" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Forgot Password Section -->
+        <div id="forgotPasswordSection" style="display: none;">
+            <h3>Reset Password</h3>
+            <form id="forgotPasswordForm" onsubmit="return false;">
+                <input type="email" id="resetEmail" placeholder="Enter your email" class="form-control mb-2" style="width: 40%; margin:auto;" required>
+                <button type="submit" onclick="resetPassword()" class="btn btn-primary w-30">
+                    <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
+                    Send Reset Link
+                </button>
+                <p class="mt-3"><a href="#" onclick="showLogin()">Back to Login</a></p>
+                <div id="resetMessage" class="error-message"></div>
+            </form>
+        </div>
+    </div> 
+    
+    <div id="afterLogin" style="display:none;" class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <button onclick="startQRScan()" class="btn btn-primary mb-3">
+                    <i class="bi bi-qr-code-scan"></i> Scan Bin QR Code
+                </button>
+                <div id="videoContainer" style="display: none;">
+                    <video id="video" playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="userDashboard" style="display:none;" class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h3>Bin Information</h3>
+                        <p><strong>Bin ID:</strong> <span id="bin-id"></span></p>
+                        <p><strong>Location:</strong> <span id="bin-location"></span></p>
+                        <p><strong>Last Pickup:</strong> <span id="last-pickup"></span></p>
+                        <div class="waste-level">
+                            <div id="waste-level-fill" class="waste-level-fill"></div>
+                        </div>
+                        <p><strong>Waste Level:</strong> <span id="fill-level"></span></p>
+                        <button onclick="schedulePickup()" class="btn btn-warning">
+                            <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
+                            Schedule Pickup
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+    <script>   
+        // API Configuration
+        const API_URL = window.location.origin + '/api';  // Changed from http://localhost:3000 to relative path for Vercel deployment
+        let currentUser = null;
+        let videoStream = null;
+        let csrfToken = '';
+
+        // Utility Functions
+        function showLoading(button) {
+            button.querySelector('.loading-spinner').style.display = 'inline-block';
+            button.disabled = true;
+        }
+
+        function hideLoading(button) {
+            button.querySelector('.loading-spinner').style.display = 'none';
+            button.disabled = false;
+        }
+
+        function showMessage(elementId, message, type = 'error') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = type === 'error' ? 'error-message' : 'success-message';
+        }
+
+        function checkPasswordStrength(password) {
+            const strengthBar = document.querySelector('.password-strength');
+            if (!password) {
+                strengthBar.className = 'password-strength';
+                return;
+            }
+
+            const hasNumber = /\d/.test(password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+            const hasLength = password.length >= 8;
+
+            if (hasNumber && hasSpecial && hasLength) {
+                strengthBar.className = 'password-strength strong';
+            } else if ((hasNumber && hasLength) || (hasSpecial && hasLength)) {
+                strengthBar.className = 'password-strength medium';
+            } else {
+                strengthBar.className = 'password-strength weak';
+            }
+        }
+
+        // UI Functions
+        function showSignup() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('signupSection').style.display = 'block';
+            document.getElementById('forgotPasswordSection').style.display = 'none';
+        }
+
+        function showLogin() {
+            document.getElementById('signupSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('forgotPasswordSection').style.display = 'none';
+        }
+
+        function showForgotPassword() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('signupSection').style.display = 'none';
+            document.getElementById('forgotPasswordSection').style.display = 'block';
+        }
+
+        // Auth Functions
+        async function register() {
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const button = document.querySelector('#signupForm button');
+
+            if (!email || !password) {
+                showMessage('signupMessage', 'Please fill in all fields');
+                return;
+            }
+
+            if (password.length < 8 || !/\d/.test(password) || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+                showMessage('signupMessage', 'Password must be at least 8 characters long and include numbers and special characters');
+                return;
+            }
+
+            showLoading(button);
+
+            try {
+                const response = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Registration failed');
+                }
+
+                showMessage('signupMessage', 'Registration successful! Please login.', 'success');
+                setTimeout(showLogin, 2000);
+            } catch (error) {
+                showMessage('signupMessage', error.message);
+            } finally {
+                hideLoading(button);
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
+            const button = document.querySelector('#loginForm button');
+
+            if (!email || !password) {
+                showMessage('loginMessage', 'Please fill in all fields');
+                return;
+            }
+
+            showLoading(button);
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ email, password, rememberMe }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Login failed');
+                }
+
+                currentUser = data;
+                csrfToken = data.csrfToken;
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('afterLogin').style.display = 'block';
+
+                if (data.role === 'admin') {
+                    // Handle admin specific functionality
+                    console.log('Admin logged in');
+                }
+            } catch (error) {
+                showMessage('loginMessage', error.message);
+            } finally {
+                hideLoading(button);
+            }
+        }
+
+        async function resetPassword() {
+            const email = document.getElementById('resetEmail').value;
+            const button = document.querySelector('#forgotPasswordForm button');
+
+            if (!email) {
+                showMessage('resetMessage', 'Please enter your email');
+                return;
+            }
+
+            showLoading(button);
+
+            try {
+                const response = await fetch(`${API_URL}/reset-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ email }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Password reset failed');
+                }
+
+                showMessage('resetMessage', 'Password reset link sent to your email', 'success');
+            } catch (error) {
+                showMessage('resetMessage', error.message);
+            } finally {
+                hideLoading(button);
+            }
+        }
+
+        // QR Code Functions
+        function startQRScan() {
+            const videoContainer = document.getElementById('videoContainer');
+            videoContainer.style.display = 'block';
+
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(function (stream) {
+                    videoStream = stream;
+                    const video = document.getElementById('video');
+                    video.srcObject = stream;
+                    video.setAttribute("playsinline", true);
+                    video.play();
+                    requestAnimationFrame(scanQRCode);
+                })
+                .catch(function (err) {
+                    console.error('Error accessing camera:', err);
+                    alert('Error accessing camera. Please ensure you have granted camera permissions.');
+                });
+        }
+
+        async function scanQRCode() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    console.log('Scanned QR Code:', code.data);
+                    stopQRScan();
+                    await fetchBinInfo(code.data);
+                    return;
+                }
+            }
+
+            requestAnimationFrame(scanQRCode);
+        }
+
+        function stopQRScan() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                document.getElementById('videoContainer').style.display = 'none';
+            }
+        }
+
+        async function fetchBinInfo(binId) {
+            const button = document.querySelector('#userDashboard button');
+            showLoading(button);
+
+            try {
+                const response = await fetch(`${API_URL}/bins/${binId}`, {
+                    headers: {
+                        'X-CSRF-Token': csrfToken
+                    }
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to fetch bin info');
+                }
+
+                if (data.bin) {
+                    document.getElementById('bin-id').textContent = data.bin.bin_id;
+                    document.getElementById('bin-location').textContent = data.bin.location;
+                    document.getElementById('last-pickup').textContent = new Date(data.bin.last_pickup).toLocaleString();
+                    document.getElementById('fill-level').textContent = `${data.bin.waste_level}%`;
+                    
+                    const wasteLevelFill = document.getElementById('waste-level-fill');
+                    wasteLevelFill.style.width = `${data.bin.waste_level}%`;
+                    wasteLevelFill.className = `waste-level-fill ${
+                        data.bin.waste_level > 80 ? 'danger' : 
+                        data.bin.waste_level > 60 ? 'warning' : ''
+                    }`;
+
+                    document.getElementById('userDashboard').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error fetching bin info:', error);
+                alert('Error fetching bin information. Please try again.');
+            } finally {
+                hideLoading(button);
+            }
+        }
+
+        async function schedulePickup() {
+            const binId = document.getElementById('bin-id').textContent;
+            const button = document.querySelector('#userDashboard button');
+            
+            if (!binId) {
+                alert('Please scan a bin first');
+                return;
+            }
+
+            showLoading(button);
+
+            try {
+                const response = await fetch(`${API_URL}/update-waste-level`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({
+                        binId,
+                        newWasteLevel: 0 // Reset waste level after pickup
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to schedule pickup');
+                }
+
+                alert('Pickup scheduled successfully!');
+                fetchBinInfo(binId); // Refresh bin info
+            } catch (error) {
+                console.error('Error scheduling pickup:', error);
+                alert('Error scheduling pickup. Please try again.');
+            } finally {
+                hideLoading(button);
+            }
+        }
+
+        // Initialize
+        document.addEventListener("DOMContentLoaded", () => {
+            // Check for saved credentials
+            const savedEmail = localStorage.getItem('rememberedEmail');
+            if (savedEmail) {
+                document.getElementById('loginEmail').value = savedEmail;
+                document.getElementById('rememberMe').checked = true;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const binId = urlParams.get("bin");
+
+            if (binId) {
+                fetchBinInfo(binId);
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopQRScan();
+        });
+    </script>
+</body>
+</html> 

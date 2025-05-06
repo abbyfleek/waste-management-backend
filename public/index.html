@@ -435,6 +435,12 @@
                     if (code) {
                         console.log('Scanned QR Code:', code.data);
                         statusElement.textContent = 'QR Code detected! Processing...';
+                        
+                        // Validate QR code data
+                        if (!code.data || typeof code.data !== 'string') {
+                            throw new Error('Invalid QR code format');
+                        }
+
                         stopQRScan();
                         await fetchBinInfo(code.data);
                         return;
@@ -473,6 +479,7 @@
                 }
 
                 if (data.bin) {
+                    // Update bin information
                     document.getElementById('bin-id').textContent = data.bin.bin_id;
                     document.getElementById('bin-location').textContent = data.bin.location;
                     document.getElementById('last-pickup').textContent = new Date(data.bin.last_pickup).toLocaleString();
@@ -485,11 +492,14 @@
                         data.bin.waste_level > 60 ? 'warning' : ''
                     }`;
 
-                    document.getElementById('clientDashboard').style.display = 'block';
+                    // Show bin information section
+                    document.getElementById('binInfo').style.display = 'block';
+                } else {
+                    throw new Error('No bin information found');
                 }
             } catch (error) {
                 console.error('Error fetching bin info:', error);
-                alert('Error fetching bin information. Please try again.');
+                alert('Error fetching bin information: ' + error.message);
             } finally {
                 hideLoading(button);
             }

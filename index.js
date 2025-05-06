@@ -43,12 +43,15 @@ supabase.from('users').select('count').single()
 
 // Input validation middleware
 const validateRegistration = (req, res, next) => {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
     }
     if (password.length < 6) {
         return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+    if (role && !['admin', 'client'].includes(role)) {
+        return res.status(400).json({ error: "Invalid role. Must be either 'admin' or 'client'" });
     }
     next();
 };
@@ -77,7 +80,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
     try {
         console.log('Registration attempt:', { email: req.body.email, role: req.body.role });
         
-        const { email, password, role = "user" } = req.body;
+        const { email, password, role = "client" } = req.body;
 
         // First check if user already exists in the users table
         const { data: existingUser, error: checkError } = await supabase
@@ -197,15 +200,24 @@ async function checkUserRole(user, res) {
         if (role === "admin") {
             const { data: bins, error: binsError } = await supabase
                 .from("bins")
-                .select("bin_id, location, waste_level");
+                .select("bin_id, location, waste_level, last_pickup");
 
             if (binsError) {
                 throw binsError;
             }
 
-            res.status(200).json({ role: "admin", bins });
+            res.status(200).json({ 
+                role: "admin", 
+                bins,
+                message: "Welcome to Admin Dashboard"
+            });
+        } else if (role === "client") {
+            res.status(200).json({ 
+                role: "client", 
+                message: "Welcome to Client Dashboard" 
+            });
         } else {
-            res.status(200).json({ role: "user", message: "User Dashboard Loaded" });
+            throw new Error("Invalid user role");
         }
     } catch (error) {
         res.status(400).json({ error: 'Error fetching user role: ' + error.message });

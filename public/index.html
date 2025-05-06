@@ -109,6 +109,13 @@
                        oninput="checkPasswordStrength(this.value)">
                 <div class="password-strength"></div>
                 <small class="text-muted">Password must be at least 8 characters long and include numbers and special characters</small>
+                <div class="form-group mb-3" style="width: 40%; margin:auto;">
+                    <label for="roleSelect">Select Role:</label>
+                    <select id="roleSelect" class="form-control" required>
+                        <option value="client">Client</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
                 <button type="submit" onclick="register()" class="btn btn-primary w-30">
                     <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
                     Signup
@@ -133,37 +140,47 @@
         </div>
     </div> 
     
-    <div id="afterLogin" style="display:none;" class="container mt-4">
+    <div id="adminDashboard" style="display:none;" class="container mt-4">
         <div class="row justify-content-center">
-            <div class="col-md-6">
-                <button onclick="startQRScan()" class="btn btn-primary mb-3">
-                    <i class="bi bi-qr-code-scan"></i> Scan Bin QR Code
-                </button>
-                <div id="videoContainer" style="display: none;">
-                    <video id="video" playsinline></video>
-                    <canvas id="canvas" style="display: none;"></canvas>
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h3>Admin Dashboard</h3>
+                        <div id="binsList" class="mt-4">
+                            <!-- Bins will be displayed here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <div id="userDashboard" style="display:none;" class="container mt-4">
+
+    <div id="clientDashboard" style="display:none;" class="container mt-4">
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-body">
-                        <h3>Bin Information</h3>
-                        <p><strong>Bin ID:</strong> <span id="bin-id"></span></p>
-                        <p><strong>Location:</strong> <span id="bin-location"></span></p>
-                        <p><strong>Last Pickup:</strong> <span id="last-pickup"></span></p>
-                        <div class="waste-level">
-                            <div id="waste-level-fill" class="waste-level-fill"></div>
-                        </div>
-                        <p><strong>Waste Level:</strong> <span id="fill-level"></span></p>
-                        <button onclick="schedulePickup()" class="btn btn-warning">
-                            <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
-                            Schedule Pickup
+                        <h3>Client Dashboard</h3>
+                        <button onclick="startQRScan()" class="btn btn-primary mb-3">
+                            <i class="bi bi-qr-code-scan"></i> Scan Bin QR Code
                         </button>
+                        <div id="videoContainer" style="display: none;">
+                            <video id="video" playsinline></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                        </div>
+                        <div id="binInfo" style="display: none;">
+                            <h4>Bin Information</h4>
+                            <p><strong>Bin ID:</strong> <span id="bin-id"></span></p>
+                            <p><strong>Location:</strong> <span id="bin-location"></span></p>
+                            <p><strong>Last Pickup:</strong> <span id="last-pickup"></span></p>
+                            <div class="waste-level">
+                                <div id="waste-level-fill" class="waste-level-fill"></div>
+                            </div>
+                            <p><strong>Waste Level:</strong> <span id="fill-level"></span></p>
+                            <button onclick="schedulePickup()" class="btn btn-warning">
+                                Schedule Pickup
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -237,6 +254,7 @@
         async function register() {
             const email = document.getElementById('signupEmail').value;
             const password = document.getElementById('signupPassword').value;
+            const role = document.getElementById('roleSelect').value;
             const button = document.querySelector('#signupForm button');
 
             if (!email || !password) {
@@ -258,7 +276,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrfToken
                     },
-                    body: JSON.stringify({ email, password }),
+                    body: JSON.stringify({ email, password, role }),
                 });
 
                 const data = await response.json();
@@ -305,14 +323,19 @@
                     throw new Error(data.error || 'Login failed');
                 }
 
-                currentUser = data;
-                csrfToken = data.csrfToken;
+                // Hide login section
                 document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('afterLogin').style.display = 'block';
 
                 if (data.role === 'admin') {
-                    // Handle admin specific functionality
-                    console.log('Admin logged in');
+                    // Show admin dashboard
+                    document.getElementById('adminDashboard').style.display = 'block';
+                    // Display bins data
+                    displayBins(data.bins);
+                    showMessage('loginMessage', data.message, 'success');
+                } else if (data.role === 'client') {
+                    // Show client dashboard
+                    document.getElementById('clientDashboard').style.display = 'block';
+                    showMessage('loginMessage', data.message, 'success');
                 }
             } catch (error) {
                 showMessage('loginMessage', error.message);
@@ -410,7 +433,7 @@
         }
 
         async function fetchBinInfo(binId) {
-            const button = document.querySelector('#userDashboard button');
+            const button = document.querySelector('#clientDashboard button');
             showLoading(button);
 
             try {
@@ -438,7 +461,7 @@
                         data.bin.waste_level > 60 ? 'warning' : ''
                     }`;
 
-                    document.getElementById('userDashboard').style.display = 'block';
+                    document.getElementById('clientDashboard').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error fetching bin info:', error);
@@ -450,7 +473,7 @@
 
         async function schedulePickup() {
             const binId = document.getElementById('bin-id').textContent;
-            const button = document.querySelector('#userDashboard button');
+            const button = document.querySelector('#clientDashboard button');
             
             if (!binId) {
                 alert('Please scan a bin first');
@@ -486,6 +509,54 @@
             } finally {
                 hideLoading(button);
             }
+        }
+
+        function displayBins(bins) {
+            const binsList = document.getElementById('binsList');
+            binsList.innerHTML = '';
+
+            if (!bins || bins.length === 0) {
+                binsList.innerHTML = '<p>No bins found</p>';
+                return;
+            }
+
+            const binsTable = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Bin ID</th>
+                            <th>Location</th>
+                            <th>Waste Level</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${bins.map(bin => `
+                            <tr>
+                                <td>${bin.bin_id}</td>
+                                <td>${bin.location}</td>
+                                <td>
+                                    <div class="waste-level">
+                                        <div class="waste-level-fill ${bin.waste_level > 80 ? 'danger' : bin.waste_level > 60 ? 'warning' : ''}" 
+                                             style="width: ${bin.waste_level}%">
+                                        </div>
+                                    </div>
+                                    ${bin.waste_level}%
+                                </td>
+                                <td>
+                                    ${bin.waste_level > 80 ? 
+                                        '<span class="badge bg-danger">Needs Collection</span>' : 
+                                        bin.waste_level > 60 ? 
+                                        '<span class="badge bg-warning">Getting Full</span>' : 
+                                        '<span class="badge bg-success">OK</span>'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            binsList.innerHTML = binsTable;
         }
 
         // Initialize

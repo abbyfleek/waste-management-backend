@@ -61,7 +61,8 @@ const errorHandler = (err, req, res, next) => {
     console.error('Error:', err);
     res.status(500).json({ 
         error: "Something went wrong!", 
-        details: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
 };
 
@@ -126,8 +127,20 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             });
         }
 
-        // Insert user into users table
-        const { error: insertError } = await supabase
+        // Use service role key for inserting into users table
+        const serviceClient = createClient(
+            supabaseUrl,
+            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        );
+
+        // Insert user into users table using service role
+        const { error: insertError } = await serviceClient
             .from("users")
             .insert([{ 
                 id: data.user.id, 
@@ -331,5 +344,4 @@ app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
 
-// Export for Vercel
-export default app;
+

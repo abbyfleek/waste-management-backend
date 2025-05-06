@@ -22,6 +22,7 @@
     }
   ],
   "env": {
-    "supabaseUrl": "https://fbpcfpplfetfcjzvgxnc.supabase.co"
+    "supabaseUrl": "https://fbpcfpplfetfcjzvgxnc.supabase.co",
+    "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZicGNmcHBsZmV0ZmNqenZneG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM2OTczNjEsImV4cCI6MjA1OTI3MzM2MX0.45OHr6JopL31I4PC-d0fV0eHxMPuU1Agfesj56BAjfc"
   }
 } 

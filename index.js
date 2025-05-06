@@ -240,23 +240,42 @@ async function checkUserRole(user, res) {
 app.get('/api/bins/:binId', async (req, res, next) => {
     try {
         const { binId } = req.params;
+        console.log('Fetching bin info for ID:', binId);
+
+        if (!supabaseKey) {
+            console.error('Supabase key is not configured');
+            return res.status(500).json({ 
+                error: "Server configuration error",
+                details: "Database connection not properly configured"
+            });
+        }
 
         const { data, error } = await supabase
             .from('bins')
-            .select('bin_id, location, last_pickup, qr_url')
+            .select('bin_id, location, last_pickup, waste_level, qr_url')
             .eq('bin_id', binId)
             .single();
 
         if (error) {
-            throw error;
+            console.error('Supabase query error:', error);
+            return res.status(500).json({ 
+                error: "Database error",
+                details: error.message
+            });
         }
 
         if (!data) {
-            return res.status(404).json({ message: 'Bin not found' });
+            console.log('Bin not found:', binId);
+            return res.status(404).json({ 
+                error: "Bin not found",
+                message: `No bin found with ID: ${binId}`
+            });
         }
 
+        console.log('Bin data retrieved:', data);
         res.status(200).json({ bin: data });
     } catch (error) {
+        console.error('Unexpected error in bin endpoint:', error);
         next(error);
     }
 });

@@ -352,11 +352,62 @@ app.get('/api/health', (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
     try {
         const { email } = req.body;
-        const { data, error } = await supabase.auth.resetPasswordForEmail(email);
-        if (error) throw error;
-        res.json({ message: 'Password reset email sent' });
+        
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/reset-password`
+        });
+        
+        if (error) {
+            console.error('Password reset error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+        
+        res.json({ message: 'Password reset email sent successfully' });
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        console.error('Password reset error:', error);
+        res.status(500).json({ error: 'Failed to send password reset email' });
+    }
+});
+
+// Add new endpoint to handle password reset
+app.post('/api/update-password', async (req, res) => {
+    try {
+        const { password, access_token } = req.body;
+        
+        if (!password || password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+
+        // If access_token is provided, set it in the session
+        if (access_token) {
+            const { error: sessionError } = await supabase.auth.setSession({
+                access_token,
+                refresh_token: ''
+            });
+
+            if (sessionError) {
+                console.error('Session error:', sessionError);
+                return res.status(400).json({ error: 'Invalid or expired reset link' });
+            }
+        }
+
+        const { data, error } = await supabase.auth.updateUser({
+            password: password
+        });
+
+        if (error) {
+            console.error('Password update error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Password update error:', error);
+        res.status(500).json({ error: 'Failed to update password' });
     }
 });
 

@@ -138,6 +138,22 @@
                 <div id="resetMessage" class="error-message"></div>
             </form>
         </div>
+
+        <!-- Reset Password Section -->
+        <div id="resetPasswordSection" style="display: none;">
+            <h3>Set New Password</h3>
+            <form id="resetPasswordForm" onsubmit="return false;">
+                <input type="password" id="newPassword" placeholder="New Password" class="form-control mb-2" style="width: 40%; margin:auto;" required 
+                       oninput="checkPasswordStrength(this.value)">
+                <div class="password-strength"></div>
+                <input type="password" id="confirmPassword" placeholder="Confirm Password" class="form-control mb-2" style="width: 40%; margin:auto;" required>
+                <button type="submit" onclick="updatePassword()" class="btn btn-primary w-30">
+                    <span class="spinner-border spinner-border-sm loading-spinner" role="status" aria-hidden="true"></span>
+                    Update Password
+                </button>
+                <div id="updatePasswordMessage" class="error-message"></div>
+            </form>
+        </div>
     </div> 
     
     <div id="adminDashboard" style="display:none;" class="container mt-4">
@@ -371,9 +387,63 @@
                     throw new Error(data.error || 'Password reset failed');
                 }
 
-                showMessage('resetMessage', 'Password reset link sent to your email', 'success');
+                showMessage('resetMessage', 'Password reset link sent to your email. Please check your inbox.', 'success');
             } catch (error) {
                 showMessage('resetMessage', error.message);
+            } finally {
+                hideLoading(button);
+            }
+        }
+
+        async function updatePassword() {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const button = document.querySelector('#resetPasswordForm button');
+            const urlParams = new URLSearchParams(window.location.search);
+            const accessToken = urlParams.get('access_token');
+
+            if (!newPassword || !confirmPassword) {
+                showMessage('updatePasswordMessage', 'Please fill in all fields');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showMessage('updatePasswordMessage', 'Passwords do not match');
+                return;
+            }
+
+            if (newPassword.length < 8 || !/\d/.test(newPassword) || !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+                showMessage('updatePasswordMessage', 'Password must be at least 8 characters long and include numbers and special characters');
+                return;
+            }
+
+            showLoading(button);
+
+            try {
+                const response = await fetch(`${API_URL}/update-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({ 
+                        password: newPassword,
+                        access_token: accessToken
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to update password');
+                }
+
+                showMessage('updatePasswordMessage', 'Password updated successfully! You can now login with your new password.', 'success');
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+            } catch (error) {
+                showMessage('updatePasswordMessage', error.message);
             } finally {
                 hideLoading(button);
             }
@@ -382,7 +452,7 @@
         // QR Code Functions
         function startQRScan() {
             const videoContainer = document.getElementById('videoContainer');
-            videoContainer.style.display = 'block';
+            videoCotnainer.style.display = 'block';
 
             // Add status message element if it doesn't exist
             if (!document.getElementById('scanStatus')) {
@@ -433,16 +503,25 @@
                     });
 
                     if (code) {
-                        console.log('Scanned QR Code:', code.data);
+                        console.log('QR Code detected with data:', code.data);
                         statusElement.textContent = 'QR Code detected! Processing...';
                         
                         // Validate QR code data
                         if (!code.data || typeof code.data !== 'string') {
+                            console.error('Invalid QR code format:', code.data);
                             throw new Error('Invalid QR code format');
                         }
 
+                        // Extract bin ID from QR code data
+                        let binId = code.data;
+                        // If the QR code contains a URL, extract the bin ID from it
+                        if (code.data.includes('/')) {
+                            binId = code.data.split('/').pop();
+                        }
+                        console.log('Extracted bin ID:', binId);
+
                         stopQRScan();
-                        await fetchBinInfo(code.data);
+                        await fetchBinInfo(binId);
                         return;
                     }
                 } catch (error) {
@@ -463,22 +542,37 @@
         }
 
         async function fetchBinInfo(binId) {
+            console.log('Fetching bin info for ID:', binId);
             const button = document.querySelector('#clientDashboard button');
+            const statusElement = document.getElementById('scanStatus');
             showLoading(button);
 
             try {
-                const response = await fetch(`${API_URL}/bins/${binId}`, {
+                // Clean the bin ID (remove any whitespace or special characters)
+                binId = binId.trim();
+                console.log('Cleaned bin ID:', binId);
+
+                const apiUrl = `${API_URL}/bins/${binId}`;
+                console.log('Making API call to:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
                     headers: {
-                        'X-CSRF-Token': csrfToken
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
                     }
                 });
+                
+                console.log('API Response status:', response.status);
                 const data = await response.json();
+                console.log('API Response data:', data);
 
                 if (!response.ok) {
-                    throw new Error(data.message || 'Failed to fetch bin info');
+                    throw new Error(data.error || data.message || 'Failed to fetch bin info');
                 }
 
                 if (data.bin) {
+                    console.log('Updating bin information with:', data.bin);
                     // Update bin information
                     document.getElementById('bin-id').textContent = data.bin.bin_id;
                     document.getElementById('bin-location').textContent = data.bin.location;
@@ -494,12 +588,19 @@
 
                     // Show bin information section
                     document.getElementById('binInfo').style.display = 'block';
+                    if (statusElement) {
+                        statusElement.textContent = 'Bin information retrieved successfully!';
+                    }
                 } else {
+                    console.error('No bin data in response');
                     throw new Error('No bin information found');
                 }
             } catch (error) {
                 console.error('Error fetching bin info:', error);
                 alert('Error fetching bin information: ' + error.message);
+                if (statusElement) {
+                    statusElement.textContent = 'Error: ' + error.message;
+                }
             } finally {
                 hideLoading(button);
             }
@@ -602,9 +703,20 @@
                 document.getElementById('rememberMe').checked = true;
             }
 
+            // Check if we're on the reset password page
             const urlParams = new URLSearchParams(window.location.search);
-            const binId = urlParams.get("bin");
+            const type = urlParams.get('type');
+            const accessToken = urlParams.get('access_token');
 
+            if (type === 'recovery' && accessToken) {
+                // Show reset password section
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('signupSection').style.display = 'none';
+                document.getElementById('forgotPasswordSection').style.display = 'none';
+                document.getElementById('resetPasswordSection').style.display = 'block';
+            }
+
+            const binId = urlParams.get("bin");
             if (binId) {
                 fetchBinInfo(binId);
             }

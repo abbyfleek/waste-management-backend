@@ -83,18 +83,17 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         const { email, password, role = "client" } = req.body;
 
         // First check if user already exists in the users table
-        const { data: existingUser, error: checkError } = await supabase
+        const { data: existingUsers, error: checkError } = await supabase
             .from("users")
             .select("id")
-            .eq("email", email)
-            .single();
+            .eq("email", email);
 
-        if (checkError && checkError.code !== "PGRST100") {
+        if (checkError) {
             console.error('Error checking existing user:', checkError);
             throw checkError;
         }
 
-        if (existingUser) {
+        if (existingUsers && existingUsers.length > 0) {
             console.log('User already exists:', email);
             return res.status(400).json({ error: "User already exists." });
         }

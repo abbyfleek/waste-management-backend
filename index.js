@@ -240,6 +240,15 @@ async function checkUserRole(user, res) {
 app.get('/api/bins/:binId', async (req, res, next) => {
     try {
         const { binId } = req.params;
+        
+        // Input validation
+        if (!binId || typeof binId !== 'string' || binId.trim().length === 0) {
+            return res.status(400).json({ 
+                error: "Invalid bin ID",
+                message: "Please provide a valid bin ID"
+            });
+        }
+
         console.log('Fetching bin info for ID:', binId);
 
         if (!supabaseKey) {
@@ -253,11 +262,17 @@ app.get('/api/bins/:binId', async (req, res, next) => {
         const { data, error } = await supabase
             .from('bins')
             .select('bin_id, location, last_pickup, waste_level, qr_url')
-            .eq('bin_id', binId)
+            .eq('bin_id', binId.trim())
             .single();
 
         if (error) {
             console.error('Supabase query error:', error);
+            if (error.code === 'PGRST116') {
+                return res.status(404).json({ 
+                    error: "Bin not found",
+                    message: `No bin found with ID: ${binId}`
+                });
+            }
             return res.status(500).json({ 
                 error: "Database error",
                 details: error.message

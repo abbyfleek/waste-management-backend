@@ -22,10 +22,24 @@ app.use(bodyParser.json());
 // Serve static files from the public directory
 app.use(express.static(join(__dirname, 'public')));
 
-// Initialize Supabase client
-const supabaseUrl = process.env.supabaseUrl;
+// Initialize Supabase client with error handling
+const supabaseUrl = process.env.supabaseUrl || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
 const supabaseKey = process.env.supabaseKey;
+
+if (!supabaseKey) {
+    console.error('Error: supabaseKey is not set in environment variables');
+    process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Test Supabase connection
+supabase.from('users').select('count').single()
+    .then(() => console.log('Supabase connection successful'))
+    .catch(error => {
+        console.error('Supabase connection error:', error);
+        process.exit(1);
+    });
 
 // Input validation middleware
 const validateRegistration = (req, res, next) => {
@@ -41,11 +55,14 @@ const validateRegistration = (req, res, next) => {
 
 // Error handling middleware
 const errorHandler = (err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: "Something went wrong!" });
+    console.error('Error:', err);
+    res.status(500).json({ 
+        error: "Something went wrong!", 
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
 };
 
-// Root route handler - must be before other routes
+// Root route handler
 app.get('/', (req, res) => {
     try {
         res.sendFile(join(__dirname, 'public', 'index.html'));
@@ -58,17 +75,11 @@ app.get('/', (req, res) => {
 // User Signup & Role Assignment
 app.post('/api/register', validateRegistration, async (req, res) => {
     try {
+        console.log('Registration attempt:', { email: req.body.email, role: req.body.role });
+        
         const { email, password, role = "user" } = req.body;
 
-        const { data, error } = await supabase.auth.signUp({ email, password });
-
-        if (error) {
-            return res.status(400).json({ error: "Signup error: " + error.message });
-        }
-
-        const userId = data.user?.id || data.session?.user.id;
-
-        // Check if user already exists
+        // First check if user already exists in the users table
         const { data: existingUser, error: checkError } = await supabase
             .from("users")
             .select("id")
@@ -76,25 +87,74 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             .single();
 
         if (checkError && checkError.code !== "PGRST100") {
+            console.error('Error checking existing user:', checkError);
             throw checkError;
         }
 
         if (existingUser) {
+            console.log('User already exists:', email);
             return res.status(400).json({ error: "User already exists." });
         }
 
-        // Insert new user with role
-        const { error: roleError } = await supabase
-            .from("users")
-            .insert([{ id: userId, email, role }]);
+        // Proceed with auth signup
+        const { data, error } = await supabase.auth.signUp({ 
+            email, 
+            password,
+            options: {
+                data: {
+                    role: role
+                },
+                emailRedirectTo: 'https://waste-management-backend-d3uu.vercel.app/login'
+            }
+        });
 
-        if (roleError) {
-            throw roleError;
+        if (error) {
+            console.error('Supabase auth error:', error);
+            return res.status(400).json({ 
+                error: "Signup error", 
+                details: error.message 
+            });
         }
 
-        res.status(200).json({ message: "Registration successful!", user: data });
+        if (!data.user) {
+            console.error('No user data returned from signup');
+            return res.status(500).json({ 
+                error: "Registration failed", 
+                details: "No user data returned" 
+            });
+        }
+
+        // Insert user into users table
+        const { error: insertError } = await supabase
+            .from("users")
+            .insert([{ 
+                id: data.user.id, 
+                email: email, 
+                role: role 
+            }]);
+
+        if (insertError) {
+            console.error('Error inserting user:', insertError);
+            // Try to clean up the auth user if we can't insert into the users table
+            await supabase.auth.admin.deleteUser(data.user.id);
+            throw insertError;
+        }
+
+        console.log('User registration completed successfully');
+        res.status(200).json({ 
+            message: "Registration successful! Please check your email for verification.", 
+            user: { 
+                id: data.user.id,
+                email: data.user.email,
+                role: role
+            }
+        });
     } catch (error) {
-        next(error);
+        console.error('Registration error:', error);
+        res.status(500).json({ 
+            error: "Registration failed", 
+            details: error.message 
+        });
     }
 });
 

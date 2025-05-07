@@ -3,8 +3,8 @@
 #include <ArduinoJson.h>
 
 // WiFi credentials
-const char* ssid = "WIN-5A949S1H89N 2004";
-const char* password = "N46)725o";
+const char* ssid = "Sengech's A26";
+const char* password = "sengech12";
 
 // Supabase configuration
 const char* supabaseUrl = "https://fbpcfpplfetfcjzvgxnc.supabase.co";
@@ -15,7 +15,7 @@ const int TRIG_PIN = 5;
 const int ECHO_PIN = 18;
 
 // Distance configuration
-const float MAX_DISTANCE = 27.0; // Maximum distance in cm
+const float MAX_DISTANCE = 23.63; // Maximum distance in cm
 const float MIN_DISTANCE = 2.0;  // Minimum distance in cm
 
 void setup() {

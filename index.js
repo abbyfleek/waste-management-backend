@@ -109,15 +109,25 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             return res.status(400).json({ error: "User already exists." });
         }
 
-        // Proceed with auth signup
-        const { data, error } = await supabase.auth.signUp({ 
-            email, 
+        // Create service client with admin privileges
+        const serviceClient = createClient(
+            supabaseUrl,
+            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        );
+
+        // Proceed with auth signup using service client
+        const { data, error } = await serviceClient.auth.admin.createUser({
+            email,
             password,
-            options: {
-                data: {
-                    role: role
-                },
-                emailRedirectTo: 'https://waste-management-backend-d3uu.vercel.app/login'
+            email_confirm: false, // Don't auto-confirm email
+            user_metadata: {
+                role: role
             }
         });
 
@@ -137,37 +147,39 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             });
         }
 
-        // Use service role key for inserting into users table
-        const serviceClient = createClient(
-            supabaseUrl,
-            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            }
-        );
-
-        // Insert user into users table using service role
+        // Insert user into users table
         const { error: insertError } = await serviceClient
             .from("users")
             .insert([{ 
                 id: data.user.id, 
                 email: email, 
-                role: role 
+                role: role,
+                email_confirmed: false // Track email confirmation status
             }]);
 
         if (insertError) {
             console.error('Error inserting user:', insertError);
             // Try to clean up the auth user if we can't insert into the users table
-            await supabase.auth.admin.deleteUser(data.user.id);
+            await serviceClient.auth.admin.deleteUser(data.user.id);
             throw insertError;
+        }
+
+        // Send confirmation email
+        const { error: emailError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
+            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/confirm-email`
+        });
+
+        if (emailError) {
+            console.error('Error sending confirmation email:', emailError);
+            return res.status(500).json({ 
+                error: "Failed to send confirmation email", 
+                details: emailError.message 
+            });
         }
 
         console.log('User registration completed successfully');
         res.status(200).json({ 
-            message: "Registration successful! Please check your email for verification.", 
+            message: "Registration successful! Please check your email for confirmation.", 
             user: { 
                 id: data.user.id,
                 email: data.user.email,
@@ -180,6 +192,58 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             error: "Registration failed", 
             details: error.message 
         });
+    }
+});
+
+// Add new endpoint to handle email confirmation
+app.get('/api/confirm-email', async (req, res) => {
+    try {
+        const { token_hash, type, email } = req.query;
+
+        if (!token_hash || !type || !email) {
+            return res.status(400).json({ error: 'Missing required parameters' });
+        }
+
+        // Create service client with admin privileges
+        const serviceClient = createClient(
+            supabaseUrl,
+            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        );
+
+        // Verify the email confirmation
+        const { data, error } = await serviceClient.auth.verifyOtp({
+            token_hash,
+            type,
+            email
+        });
+
+        if (error) {
+            console.error('Email confirmation error:', error);
+            return res.status(400).json({ error: error.message });
+        }
+
+        // Update user's email_confirmed status in the users table
+        const { error: updateError } = await serviceClient
+            .from('users')
+            .update({ email_confirmed: true })
+            .eq('email', email);
+
+        if (updateError) {
+            console.error('Error updating email confirmation status:', updateError);
+            return res.status(500).json({ error: 'Failed to update email confirmation status' });
+        }
+
+        // Redirect to login page with success message
+        res.redirect(`${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/login?message=Email confirmed successfully! You can now login.`);
+    } catch (error) {
+        console.error('Email confirmation error:', error);
+        res.status(500).json({ error: 'Failed to confirm email' });
     }
 });
 

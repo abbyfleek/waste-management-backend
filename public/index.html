@@ -716,8 +716,27 @@
                 document.getElementById('resetPasswordSection').style.display = 'block';
             }
 
+            // Check for bin ID in URL path (e.g., /client-dashboard/WPBIN001)
+            const pathParts = window.location.pathname.split('/');
+            if (pathParts.length >= 3 && pathParts[1] === "client-dashboard" && pathParts[2]) {
+                const binId = pathParts[2];
+                // Show client dashboard and hide other sections
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('signupSection').style.display = 'none';
+                document.getElementById('forgotPasswordSection').style.display = 'none';
+                document.getElementById('resetPasswordSection').style.display = 'none';
+                document.getElementById('clientDashboard').style.display = 'block';
+                // Show bin info section and hide QR scan button
+                document.getElementById('videoContainer').style.display = 'none';
+                document.getElementById('binInfo').style.display = 'block';
+                fetchBinInfo(binId);
+                return;
+            }
+
+            // Fallback: check for bin in query string (?bin=...)
             const binId = urlParams.get("bin");
             if (binId) {
+                document.getElementById('clientDashboard').style.display = 'block';
                 fetchBinInfo(binId);
             }
         });

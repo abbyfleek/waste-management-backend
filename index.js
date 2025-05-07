@@ -76,6 +76,16 @@ app.get('/', (req, res) => {
     }
 });
 
+// Client Dashboard Route Handler
+app.get('/client-dashboard/:binId', (req, res) => {
+    try {
+        res.sendFile(join(__dirname, 'public', 'index.html'));
+    } catch (error) {
+        console.error('Error serving client dashboard:', error);
+        res.status(500).send('Error loading page');
+    }
+});
+
 // User Signup & Role Assignment
 app.post('/api/register', validateRegistration, async (req, res) => {
     try {

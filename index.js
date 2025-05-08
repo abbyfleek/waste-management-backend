@@ -86,6 +86,16 @@ app.get('/client-dashboard/:binId', (req, res) => {
     }
 });
 
+// Generate QR Code Route Handler
+app.get('/generate-qr', (req, res) => {
+    try {
+        res.sendFile(join(__dirname, 'public', 'generate-qr.html'));
+    } catch (error) {
+        console.error('Error serving QR generator:', error);
+        res.status(500).send('Error loading QR generator');
+    }
+});
+
 // User Signup & Role Assignment
 app.post('/api/register', validateRegistration, async (req, res) => {
     try {
@@ -154,7 +164,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
                 id: data.user.id, 
                 email: email, 
                 role: role,
-                email_confirmed: false // Track email confirmation status
+                email_confirmed: false
             }]);
 
         if (insertError) {
@@ -171,10 +181,8 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         if (emailError) {
             console.error('Error sending confirmation email:', emailError);
-            return res.status(500).json({ 
-                error: "Failed to send confirmation email", 
-                details: emailError.message 
-            });
+            // Don't fail registration if email sending fails
+            console.log('Continuing with registration despite email error');
         }
 
         console.log('User registration completed successfully');
@@ -378,8 +386,7 @@ app.post('/api/update-waste-level', async (req, res, next) => {
             return res.status(400).json({ error: "Bin ID and waste level are required" });
         }
 
-        if (level < 0 || level > 100) {
-            return res.status(400).json({ error: "Waste level must be between 0 and 100" });
+        if (level < 0 || level > 100) {          return res.status(400).json({ error: "Waste level must be between 0 and 100" });
         }
 
         const { error } = await supabase

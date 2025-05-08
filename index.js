@@ -6,7 +6,9 @@ import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import { supabase, serviceClient } from './supabase.js';
 
+// Load environment variables
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +28,12 @@ app.use(express.static(join(__dirname, 'public')));
 const supabaseUrl = process.env.supabaseUrl || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
 const supabaseKey = process.env.supabaseKey;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+console.log('Environment check:', {
+    supabaseUrl: supabaseUrl ? 'Set' : 'Not set',
+    supabaseKey: supabaseKey ? 'Set' : 'Not set',
+    supabaseServiceKey: supabaseServiceKey ? 'Set' : 'Not set'
+});
 
 if (!supabaseKey || !supabaseServiceKey) {
     console.error('Error: Supabase keys are not properly configured');
@@ -51,11 +59,16 @@ supabase.from('users').select('count').single()
 // Input validation middleware
 const validateRegistration = (req, res, next) => {
     const { email, password, role } = req.body;
+    console.log('Validating registration:', { email, role });
+
     if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
     }
-    if (password.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters" });
+    if (password.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        return res.status(400).json({ error: "Invalid email format" });
     }
     if (role && !['admin', 'client'].includes(role)) {
         return res.status(400).json({ error: "Invalid role. Must be either 'admin' or 'client'" });
@@ -128,18 +141,6 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             console.log('User already exists:', email);
             return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
-
-        // Create service client with admin privileges
-        const serviceClient = createClient(
-            supabaseUrl,
-            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            }
-        );
 
         // Proceed with auth signup using service client
         const { data, error } = await serviceClient.auth.admin.createUser({
@@ -505,6 +506,154 @@ app.post('/api/update-password', async (req, res) => {
     } catch (error) {
         console.error('Password update error:', error);
         res.status(500).json({ error: 'Failed to update password' });
+    }
+});
+
+// Add this test endpoint before the catch-all route
+app.get('/api/test-service-role', async (req, res) => {
+    try {
+        console.log('Testing service role permissions...');
+        
+        // Test 1: Try to create a test user
+        const testEmail = `test_${Date.now()}@example.com`;
+        const { data: userData, error: userError } = await serviceClient.auth.admin.createUser({
+            email: testEmail,
+            password: 'Test123!@#',
+            email_confirm: true
+        });
+
+        if (userError) {
+            console.error('Service role test failed - User creation:', userError);
+            return res.status(500).json({
+                error: 'Service role test failed',
+                details: userError.message
+            });
+        }
+
+        // Test 2: Try to insert into users table
+        const { error: insertError } = await serviceClient
+            .from('users')
+            .insert({
+                id: userData.user.id,
+                email: testEmail,
+                role: 'client',
+                email_confirmed: true,
+                created_at: new Date().toISOString()
+            });
+
+        if (insertError) {
+            console.error('Service role test failed - Table insert:', insertError);
+            // Clean up the test user
+            await serviceClient.auth.admin.deleteUser(userData.user.id);
+            return res.status(500).json({
+                error: 'Service role test failed',
+                details: insertError.message
+            });
+        }
+
+        // Test 3: Try to read from users table
+        const { data: readData, error: readError } = await serviceClient
+            .from('users')
+            .select('*')
+            .eq('id', userData.user.id)
+            .single();
+
+        if (readError) {
+            console.error('Service role test failed - Table read:', readError);
+            return res.status(500).json({
+                error: 'Service role test failed',
+                details: readError.message
+            });
+        }
+
+        // Clean up the test user
+        await serviceClient.auth.admin.deleteUser(userData.user.id);
+        await serviceClient
+            .from('users')
+            .delete()
+            .eq('id', userData.user.id);
+
+        console.log('Service role test passed successfully');
+        res.status(200).json({
+            message: 'Service role permissions verified successfully',
+            tests: {
+                userCreation: 'passed',
+                tableInsert: 'passed',
+                tableRead: 'passed',
+                cleanup: 'passed'
+            }
+        });
+    } catch (error) {
+        console.error('Service role test failed:', error);
+        res.status(500).json({
+            error: 'Service role test failed',
+            details: error.message
+        });
+    }
+});
+
+// Add this test endpoint before the catch-all route
+app.get('/api/check-rls', async (req, res) => {
+    try {
+        console.log('Checking RLS status...');
+        
+        // Test 1: Check if we can read from the table
+        const { data: readData, error: readError } = await serviceClient
+            .from('users')
+            .select('count')
+            .single();
+
+        if (readError) {
+            console.error('RLS check failed - Read test:', readError);
+            return res.status(500).json({
+                error: 'RLS check failed',
+                details: readError.message,
+                hint: 'This might indicate RLS is blocking access or not properly configured'
+            });
+        }
+
+        // Test 2: Try to insert a test record
+        const testId = '00000000-0000-0000-0000-000000000000';
+        const { error: insertError } = await serviceClient
+            .from('users')
+            .insert({
+                id: testId,
+                email: 'test@example.com',
+                role: 'client',
+                email_confirmed: false,
+                created_at: new Date().toISOString()
+            });
+
+        if (insertError) {
+            console.error('RLS check failed - Insert test:', insertError);
+            return res.status(500).json({
+                error: 'RLS check failed',
+                details: insertError.message,
+                hint: 'This might indicate RLS is blocking inserts or not properly configured'
+            });
+        }
+
+        // Clean up test record
+        await serviceClient
+            .from('users')
+            .delete()
+            .eq('id', testId);
+
+        console.log('RLS check passed successfully');
+        res.status(200).json({
+            message: 'RLS is properly configured',
+            tests: {
+                readAccess: 'passed',
+                insertAccess: 'passed',
+                deleteAccess: 'passed'
+            }
+        });
+    } catch (error) {
+        console.error('RLS check failed:', error);
+        res.status(500).json({
+            error: 'RLS check failed',
+            details: error.message
+        });
     }
 });
 

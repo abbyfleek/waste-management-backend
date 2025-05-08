@@ -111,12 +111,15 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         if (checkError) {
             console.error('Error checking existing user:', checkError);
-            throw checkError;
+            return res.status(500).json({ 
+                error: "Database error", 
+                details: checkError.message 
+            });
         }
 
         if (existingUsers && existingUsers.length > 0) {
             console.log('User already exists:', email);
-            return res.status(400).json({ error: "User already exists." });
+            return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
 
         // Create service client with admin privileges
@@ -135,7 +138,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         const { data, error } = await serviceClient.auth.admin.createUser({
             email,
             password,
-            email_confirm: false, // Don't auto-confirm email
+            email_confirm: true, // Auto-confirm email to simplify registration
             user_metadata: {
                 role: role
             }
@@ -144,7 +147,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         if (error) {
             console.error('Supabase auth error:', error);
             return res.status(400).json({ 
-                error: "Signup error", 
+                error: "Registration failed", 
                 details: error.message 
             });
         }
@@ -164,30 +167,22 @@ app.post('/api/register', validateRegistration, async (req, res) => {
                 id: data.user.id, 
                 email: email, 
                 role: role,
-                email_confirmed: false
+                email_confirmed: true // Set to true since we're auto-confirming
             }]);
 
         if (insertError) {
             console.error('Error inserting user:', insertError);
             // Try to clean up the auth user if we can't insert into the users table
             await serviceClient.auth.admin.deleteUser(data.user.id);
-            throw insertError;
-        }
-
-        // Send confirmation email
-        const { error: emailError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
-            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/confirm-email`
-        });
-
-        if (emailError) {
-            console.error('Error sending confirmation email:', emailError);
-            // Don't fail registration if email sending fails
-            console.log('Continuing with registration despite email error');
+            return res.status(500).json({ 
+                error: "Failed to create user profile", 
+                details: insertError.message 
+            });
         }
 
         console.log('User registration completed successfully');
         res.status(200).json({ 
-            message: "Registration successful! Please check your email for confirmation.", 
+            message: "Registration successful! You can now login.", 
             user: { 
                 id: data.user.id,
                 email: data.user.email,

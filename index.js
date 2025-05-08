@@ -129,11 +129,23 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
 
+        // Create service client with admin privileges
+        const serviceClient = createClient(
+            supabaseUrl,
+            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        );
+
         // Proceed with auth signup using service client
         const { data, error } = await serviceClient.auth.admin.createUser({
             email,
             password,
-            email_confirm: true,
+            email_confirm: false, // Don't auto-confirm email
             user_metadata: {
                 role: role
             }
@@ -164,36 +176,34 @@ app.post('/api/register', validateRegistration, async (req, res) => {
                 id: data.user.id,
                 email: email,
                 role: role,
+                email_confirmed: false,
                 created_at: new Date().toISOString()
             });
 
         if (insertError) {
             console.error('Error inserting user:', insertError);
-            console.error('Error details:', {
-                code: insertError.code,
-                message: insertError.message,
-                details: insertError.details,
-                hint: insertError.hint
-            });
-            
             // Try to clean up the auth user if we can't insert into the users table
-            try {
-                await serviceClient.auth.admin.deleteUser(data.user.id);
-                console.log('Cleaned up auth user after failed profile creation');
-            } catch (cleanupError) {
-                console.error('Error cleaning up auth user:', cleanupError);
-            }
-
+            await serviceClient.auth.admin.deleteUser(data.user.id);
             return res.status(500).json({ 
                 error: "Failed to create user profile", 
-                details: insertError.message,
-                hint: insertError.hint || 'Please try again or contact support'
+                details: insertError.message 
             });
+        }
+
+        // Send confirmation email
+        const { error: emailError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
+            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/confirm-email`
+        });
+
+        if (emailError) {
+            console.error('Error sending confirmation email:', emailError);
+            // Don't fail registration if email sending fails
+            console.log('Continuing with registration despite email error');
         }
 
         console.log('User registration completed successfully');
         res.status(200).json({ 
-            message: "Registration successful! You can now login.", 
+            message: "Registration successful! Please check your email for confirmation.", 
             user: { 
                 id: data.user.id,
                 email: data.user.email,

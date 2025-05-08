@@ -162,17 +162,32 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         console.log('Auth user created successfully:', data.user.id);
 
-        // Insert user into users table with explicit column names
+        // First, check if the users table exists and has the correct structure
+        const { data: tableInfo, error: tableError } = await serviceClient
+            .from('users')
+            .select('*')
+            .limit(1);
+
+        if (tableError) {
+            console.error('Error checking users table:', tableError);
+            return res.status(500).json({
+                error: "Database configuration error",
+                details: "Users table may not be properly configured"
+            });
+        }
+
+        // Insert user into users table with minimal required fields
+        const userData = {
+            id: data.user.id,
+            email: email,
+            role: role
+        };
+
+        console.log('Attempting to insert user with data:', userData);
+
         const { error: insertError } = await serviceClient
             .from("users")
-            .insert({
-                id: data.user.id,
-                email: email,
-                role: role,
-                email_confirmed: true,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            });
+            .insert(userData);
 
         if (insertError) {
             console.error('Error inserting user:', insertError);

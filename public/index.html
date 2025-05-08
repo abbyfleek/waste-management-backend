@@ -162,6 +162,11 @@
                 <div class="card">
                     <div class="card-body">
                         <h3>Admin Dashboard</h3>
+                        <div class="mb-4">
+                            <button onclick="window.location.href='/generate-qr'" class="btn btn-primary">
+                                <i class="bi bi-qr-code"></i> Generate Bin QR Codes
+                            </button>
+                        </div>
                         <div id="binsList" class="mt-4">
                             <!-- Bins will be displayed here -->
                         </div>
@@ -452,7 +457,7 @@
         // QR Code Functions
         function startQRScan() {
             const videoContainer = document.getElementById('videoContainer');
-            videoCotnainer.style.display = 'block';
+            videoContainer.style.display = 'block';
 
             // Add status message element if it doesn't exist
             if (!document.getElementById('scanStatus')) {

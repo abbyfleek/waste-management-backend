@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Bin QR Code</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        .qr-container {
+            max-width: 300px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+        }
+        #qrcode {
+            margin: 20px auto;
+        }
+        .download-btn {
+            margin-top: 20px;
+        }
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <a href="/" class="btn btn-secondary back-btn">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="text-center mb-4">Generate Bin QR Code</h3>
+                        
+                        <div class="mb-3">
+                            <label for="binId" class="form-label">Bin ID:</label>
+                            <input type="text" class="form-control" id="binId" value="WPBIN001" placeholder="Enter Bin ID">
+                        </div>
+
+                        <button onclick="generateQR()" class="btn btn-primary w-100">Generate QR Code</button>
+
+                        <div id="qrContainer" class="qr-container" style="display: none;">
+                            <h4>Bin QR Code</h4>
+                            <div id="qrcode"></div>
+                            <p class="mt-2" id="qrUrl"></p>
+                            <button onclick="downloadQR()" class="btn btn-success download-btn">
+                                <i class="bi bi-download"></i> Download QR Code
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function generateQR() {
+            const binId = document.getElementById('binId').value.trim();
+            if (!binId) {
+                alert('Please enter a Bin ID');
+                return;
+            }
+
+            // Clear previous QR code
+            document.getElementById('qrcode').innerHTML = '';
+            
+            // Generate the URL
+            const baseUrl = window.location.origin;
+            const qrUrl = `${baseUrl}/client-dashboard/${binId}`;
+            
+            // Display the URL
+            document.getElementById('qrUrl').textContent = qrUrl;
+            
+            // Generate QR code
+            QRCode.toCanvas(document.getElementById('qrcode'), qrUrl, {
+                width: 256,
+                margin: 1,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            }, function (error) {
+                if (error) console.error(error);
+                console.log('QR Code generated successfully');
+            });
+
+            // Show the container
+            document.getElementById('qrContainer').style.display = 'block';
+        }
+
+        function downloadQR() {
+            const canvas = document.querySelector('#qrcode canvas');
+            if (!canvas) {
+                alert('Please generate a QR code first');
+                return;
+            }
+
+            // Create a temporary link
+            const link = document.createElement('a');
+            link.download = `bin-qr-${document.getElementById('binId').value}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Generate QR code on page load
+        window.onload = generateQR;
+    </script>
+</body>
+</html> 

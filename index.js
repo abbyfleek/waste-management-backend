@@ -160,23 +160,41 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             });
         }
 
-        // Insert user into users table
+        console.log('Auth user created successfully:', data.user.id);
+
+        // Insert user into users table with explicit column names
         const { error: insertError } = await serviceClient
             .from("users")
-            .insert([{ 
-                id: data.user.id, 
-                email: email, 
+            .insert({
+                id: data.user.id,
+                email: email,
                 role: role,
-                email_confirmed: true // Set to true since we're auto-confirming
-            }]);
+                email_confirmed: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
 
         if (insertError) {
             console.error('Error inserting user:', insertError);
+            console.error('Error details:', {
+                code: insertError.code,
+                message: insertError.message,
+                details: insertError.details,
+                hint: insertError.hint
+            });
+            
             // Try to clean up the auth user if we can't insert into the users table
-            await serviceClient.auth.admin.deleteUser(data.user.id);
+            try {
+                await serviceClient.auth.admin.deleteUser(data.user.id);
+                console.log('Cleaned up auth user after failed profile creation');
+            } catch (cleanupError) {
+                console.error('Error cleaning up auth user:', cleanupError);
+            }
+
             return res.status(500).json({ 
                 error: "Failed to create user profile", 
-                details: insertError.message 
+                details: insertError.message,
+                hint: insertError.hint || 'Please try again or contact support'
             });
         }
 

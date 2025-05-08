@@ -25,13 +25,20 @@ app.use(express.static(join(__dirname, 'public')));
 // Initialize Supabase client with error handling
 const supabaseUrl = process.env.supabaseUrl || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
 const supabaseKey = process.env.supabaseKey;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseKey) {
-    console.error('Error: supabaseKey is not set in environment variables');
+if (!supabaseKey || !supabaseServiceKey) {
+    console.error('Error: Supabase keys are not properly configured');
     process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+const serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false
+    }
+});
 
 // Test Supabase connection
 supabase.from('users').select('count').single()
@@ -122,23 +129,11 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
 
-        // Create service client with admin privileges
-        const serviceClient = createClient(
-            supabaseUrl,
-            process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey,
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            }
-        );
-
         // Proceed with auth signup using service client
         const { data, error } = await serviceClient.auth.admin.createUser({
             email,
             password,
-            email_confirm: true, // Auto-confirm email to simplify registration
+            email_confirm: true,
             user_metadata: {
                 role: role
             }
@@ -162,32 +157,15 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         console.log('Auth user created successfully:', data.user.id);
 
-        // First, check if the users table exists and has the correct structure
-        const { data: tableInfo, error: tableError } = await serviceClient
-            .from('users')
-            .select('*')
-            .limit(1);
-
-        if (tableError) {
-            console.error('Error checking users table:', tableError);
-            return res.status(500).json({
-                error: "Database configuration error",
-                details: "Users table may not be properly configured"
-            });
-        }
-
-        // Insert user into users table with minimal required fields
-        const userData = {
-            id: data.user.id,
-            email: email,
-            role: role
-        };
-
-        console.log('Attempting to insert user with data:', userData);
-
+        // Insert user into users table
         const { error: insertError } = await serviceClient
             .from("users")
-            .insert(userData);
+            .insert({
+                id: data.user.id,
+                email: email,
+                role: role,
+                created_at: new Date().toISOString()
+            });
 
         if (insertError) {
             console.error('Error inserting user:', insertError);

@@ -24,6 +24,7 @@
   "env": {
     "supabaseUrl": "https://fbpcfpplfetfcjzvgxnc.supabase.co",
     "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZicGNmcHBsZmV0ZmNqenZneG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM2OTczNjEsImV4cCI6MjA1OTI3MzM2MX0.45OHr6JopL31I4PC-d0fV0eHxMPuU1Agfesj56BAjfc",
+    "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZicGNmcHBsZmV0ZmNqenZneG5jIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MzY5NzM2MSwiZXhwIjoyMDU5MjczMzYxfQ.45OHr6JopL31I4PC-d0fV0eHxMPuU1Agfesj56BAjfc",
     "FRONTEND_URL": "https://waste-management-backend-d3uu.vercel.app"
   }
 } 

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        .scan-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .scan-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .scan-overlay.active {
+            opacity: 1;
+        }
+        .scan-frame {
+            width: 250px;
+            height: 250px;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            position: relative;
+            margin: 20px auto;
+        }
+        .scan-frame::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: 50px;
+            height: 50px;
+            border-top: 4px solid #00ff00;
+            border-left: 4px solid #00ff00;
+        }
+        .scan-frame::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 50px;
+            height: 50px;
+            border-bottom: 4px solid #00ff00;
+            border-right: 4px solid #00ff00;
+        }
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: #00ff00;
+            top: 50%;
+            animation: scan 2s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+        .bin-info {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .scan-button {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .bin-status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-full {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status-maintenance {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .bin-details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .bin-detail-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .bin-detail-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .bin-detail-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .waste-level-indicator {
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .waste-level-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+        .waste-level-fill.high {
+            background: #dc3545;
+        }
+        .waste-level-fill.medium {
+            background: #ffc107;
+        }
+        .schedule-pickup-btn {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+        }
+        .schedule-modal .modal-content {
+            border-radius: 15px;
+        }
+        .schedule-modal .modal-header {
+            background: #f8f9fa;
+            border-radius: 15px 15px 0 0;
+        }
+        .schedule-modal .form-control {
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .schedule-modal .btn-primary {
+            padding: 12px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="text-center mb-4">Client Dashboard</h3>
+                        
+                        <div class="scan-container">
+                            <div class="scan-frame">
+                                <div class="scan-line"></div>
+                            </div>
+                            <div class="scan-overlay">
+                                <h4>Scanning QR Code</h4>
+                                <p>Position the QR code within the frame</p>
+                            </div>
+                        </div>
+
+                        <div class="bin-info" style="display: none;">
+                            <h4 class="mb-4">Bin Information</h4>
+                            <div id="binDetails"></div>
+                            <button onclick="showScheduleModal()" class="btn btn-primary schedule-pickup-btn">
+                                <i class="bi bi-calendar-plus"></i> Schedule Pickup
+                            </button>
+                        </div>
+
+                        <button onclick="startScan()" class="btn btn-primary scan-button">
+                            <i class="bi bi-qr-code-scan"></i> Scan Bin QR Code
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Pickup Modal -->
+    <div class="modal fade schedule-modal" id="scheduleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Schedule Pickup</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="scheduleForm">
+                        <div class="mb-3">
+                            <label class="form-label">Pickup Date</label>
+                            <input type="date" class="form-control" id="pickupDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Preferred Time</label>
+                            <select class="form-control" id="pickupTime" required>
+                                <option value="morning">Morning (8AM - 12PM)</option>
+                                <option value="afternoon">Afternoon (12PM - 4PM)</option>
+                                <option value="evening">Evening (4PM - 8PM)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (Optional)</label>
+                            <textarea class="form-control" id="pickupNotes" rows="3" placeholder="Any special instructions or notes..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="schedulePickup()">Schedule Pickup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let isScanning = false;
+        let scanInterval = null;
+
+        function startScan() {
+            if (!isScanning) {
+                isScanning = true;
+                document.querySelector('.scan-overlay').classList.add('active');
+                document.querySelector('.scan-button').innerHTML = '<i class="bi bi-stop-circle"></i> Stop Scanning';
+                
+                // Start camera
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                        .then(function(stream) {
+                            const video = document.createElement('video');
+                            video.srcObject = stream;
+                            video.play();
+                            
+                            // Add video to scan frame
+                            const scanFrame = document.querySelector('.scan-frame');
+                            scanFrame.appendChild(video);
+                            video.style.width = '100%';
+                            video.style.height = '100%';
+                            video.style.objectFit = 'cover';
+                            
+                            // Start QR code detection
+                            scanInterval = setInterval(() => detectQRCode(video), 100);
+                        })
+                        .catch(function(error) {
+                            console.error('Error accessing camera:', error);
+                            showMessage('Error accessing camera. Please make sure you have granted camera permissions.');
+                            stopScan();
+                        });
+                } else {
+                    showMessage('Camera access is not supported on this device.');
+                    stopScan();
+                }
+            } else {
+                stopScan();
+            }
+        }
+
+        function stopScan() {
+            isScanning = false;
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+            document.querySelector('.scan-overlay').classList.remove('active');
+            document.querySelector('.scan-button').innerHTML = '<i class="bi bi-qr-code-scan"></i> Scan Bin QR Code';
+            
+            // Stop camera
+            const video = document.querySelector('.scan-frame video');
+            if (video) {
+                const stream = video.srcObject;
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.remove();
+            }
+        }
+
+        function detectQRCode(video) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            
+            if (code) {
+                console.log("Found QR code", code.data);
+                const binId = code.data.split('/').pop();
+                if (binId) {
+                    showBinInfo(binId);
+                    stopScan();
+                }
+            }
+        }
+
+        async function showBinInfo(binId) {
+            try {
+                // Fetch bin information from the server
+                const response = await fetch(`/api/bin-info/${binId}`);
+                const binData = await response.json();
+
+                // Show bin information
+                document.querySelector('.bin-info').style.display = 'block';
+                
+                // Determine waste level class
+                let levelClass = '';
+                if (binData.waste_level > 80) levelClass = 'high';
+                else if (binData.waste_level > 50) levelClass = 'medium';
+
+                document.getElementById('binDetails').innerHTML = `
+                    <div class="bin-details-grid">
+                        <div class="bin-detail-item">
+                            <div class="bin-detail-label">Bin ID</div>
+                            <div class="bin-detail-value">${binId}</div>
+                        </div>
+                        <div class="bin-detail-item">
+                            <div class="bin-detail-label">Location</div>
+                            <div class="bin-detail-value">${binData.location || 'Not specified'}</div>
+                        </div>
+                        <div class="bin-detail-item">
+                            <div class="bin-detail-label">Waste Level</div>
+                            <div class="bin-detail-value">${binData.waste_level || 0}%</div>
+                            <div class="waste-level-indicator">
+                                <div class="waste-level-fill ${levelClass}" style="width: ${binData.waste_level || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-detail-item">
+                            <div class="bin-detail-label">Scheduled Pickup</div>
+                            <div class="bin-detail-value">${binData.scheduled_pickup || 'Not scheduled'}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error fetching bin info:', error);
+                showMessage('Error loading bin information. Please try again.');
+            }
+        }
+
+        function showScheduleModal() {
+            const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+            modal.show();
+        }
+
+        async function schedulePickup() {
+            const binId = window.location.pathname.split('/').pop();
+            const date = document.getElementById('pickupDate').value;
+            const time = document.getElementById('pickupTime').value;
+            const notes = document.getElementById('pickupNotes').value;
+
+            try {
+                const response = await fetch('/api/schedule-pickup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        binId,
+                        date,
+                        time,
+                        notes
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to schedule pickup');
+                }
+
+                showMessage('Pickup scheduled successfully!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
+                
+                // Refresh bin information
+                showBinInfo(binId);
+            } catch (error) {
+                console.error('Error scheduling pickup:', error);
+                showMessage(error.message);
+            }
+        }
+
+        function showMessage(message, type = 'error') {
+            alert(message);
+        }
+
+        // Check if we have a bin ID in the URL
+        window.onload = function() {
+            const binId = window.location.pathname.split('/').pop();
+            if (binId) {
+                showBinInfo(binId);
+            }
+        };
+    </script>
+</body>
+</html> 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate Bin QR Code</title>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
@@ -18,6 +18,12 @@
         }
         #qrcode {
             margin: 20px auto;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .download-btn {
             margin-top: 20px;
@@ -82,6 +88,7 @@
 
     <script>
         let currentQRUrl = '';
+        let qrcode = null;
 
         function showMessage(message, type = 'error') {
             const messageDiv = document.getElementById('message');
@@ -104,7 +111,8 @@
             }
 
             // Clear previous QR code
-            document.getElementById('qrcode').innerHTML = '';
+            const qrcodeDiv = document.getElementById('qrcode');
+            qrcodeDiv.innerHTML = '';
             
             // Generate the URL
             const baseUrl = window.location.origin;
@@ -114,26 +122,30 @@
             document.getElementById('qrUrl').textContent = currentQRUrl;
             
             // Generate QR code
-            QRCode.toCanvas(document.getElementById('qrcode'), currentQRUrl, {
-                width: 256,
-                margin: 1,
-                color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                }
-            }, function (error) {
-                if (error) {
-                    console.error(error);
-                    showMessage('Error generating QR code');
-                    return;
-                }
+            try {
+                qrcode = new QRCode(qrcodeDiv, {
+                    text: currentQRUrl,
+                    width: 300,
+                    height: 300,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                
+                // Add scan instructions
+                const scanInstructions = document.createElement('p');
+                scanInstructions.className = 'text-muted mt-2';
+                scanInstructions.innerHTML = '<small>Scan this QR code with Google Lens or any QR code scanner</small>';
+                qrcodeDiv.appendChild(scanInstructions);
+                
                 console.log('QR Code generated successfully');
                 showMessage('QR Code generated successfully! Click Save to store in database.', 'success');
                 document.getElementById('saveBtn').style.display = 'block';
-            });
-
-            // Show the container
-            document.getElementById('qrContainer').style.display = 'block';
+                document.getElementById('qrContainer').style.display = 'block';
+            } catch (error) {
+                console.error('Error generating QR code:', error);
+                showMessage('Error generating QR code. Please try again.');
+            }
         }
 
         async function saveQR() {

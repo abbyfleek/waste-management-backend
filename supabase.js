@@ -5,13 +5,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Get environment variables with fallbacks
-const supabaseUrl = process.env.supabaseUrl || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
-const supabaseKey = process.env.supabaseKey;
+const supabaseUrl = process.env.SUPABASE_URL || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Validate configuration
 if (!supabaseKey) {
-    console.error('Error: SUPABASE_KEY is not set in environment variables');
+    console.error('Error: SUPABASE_ANON_KEY is not set in environment variables');
     process.exit(1);
 }
 

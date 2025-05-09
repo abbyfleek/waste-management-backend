@@ -170,6 +170,39 @@
             padding: 12px;
             border-radius: 8px;
         }
+        .assigned-bins {
+            margin-top: 20px;
+        }
+        .bin-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .bin-card:hover {
+            transform: translateY(-2px);
+        }
+        .bin-card .waste-level {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .bin-card .waste-level-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+        .bin-card .waste-level-fill.high {
+            background: #dc3545;
+        }
+        .bin-card .waste-level-fill.medium {
+            background: #ffc107;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -180,7 +213,12 @@
                     <div class="card-body">
                         <h3 class="text-center mb-4">Client Dashboard</h3>
                         
-                        <div class="scan-container">
+                        <div class="assigned-bins">
+                            <h4 class="mb-3">Your Assigned Bins</h4>
+                            <div id="assignedBinsList"></div>
+                        </div>
+
+                        <div class="scan-container mt-4">
                             <div class="scan-frame">
                                 <div class="scan-line"></div>
                             </div>
@@ -414,8 +452,37 @@
             alert(message);
         }
 
-        // Check if we have a bin ID in the URL
+        // Load assigned bins
+        async function loadAssignedBins() {
+            try {
+                const response = await fetch('/api/assigned-bins');
+                const bins = await response.json();
+
+                const binsList = document.getElementById('assignedBinsList');
+                binsList.innerHTML = bins.map(bin => `
+                    <div class="bin-card" onclick="showBinInfo('${bin.bin_id}')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Bin ${bin.bin_id}</h5>
+                            <span class="badge ${bin.waste_level > 80 ? 'bg-danger' : bin.waste_level > 50 ? 'bg-warning' : 'bg-success'}">
+                                ${bin.waste_level}%
+                            </span>
+                        </div>
+                        <p class="text-muted mb-2">${bin.location}</p>
+                        <div class="waste-level">
+                            <div class="waste-level-fill ${bin.waste_level > 80 ? 'high' : bin.waste_level > 50 ? 'medium' : ''}" 
+                                 style="width: ${bin.waste_level}%"></div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading assigned bins:', error);
+                showMessage('Error loading assigned bins. Please try again.');
+            }
+        }
+
+        // Load assigned bins when page loads
         window.onload = function() {
+            loadAssignedBins();
             const binId = window.location.pathname.split('/').pop();
             if (binId) {
                 showBinInfo(binId);

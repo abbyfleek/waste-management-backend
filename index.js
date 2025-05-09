@@ -692,6 +692,70 @@ app.post('/api/save-qr', async (req, res) => {
     }
 });
 
+// Get assigned bins for the logged-in user
+app.get('/api/assigned-bins', authenticateToken, async (req, res) => {
+    try {
+        const { data: bins, error } = await supabase
+            .from('bins')
+            .select('*')
+            .eq('assigned_user_id', req.user.id);
+
+        if (error) throw error;
+        res.json(bins);
+    } catch (error) {
+        console.error('Error fetching assigned bins:', error);
+        res.status(500).json({ error: 'Failed to fetch assigned bins' });
+    }
+});
+
+// Assign bin to user (admin only)
+app.post('/api/assign-bin', authenticateToken, async (req, res) => {
+    try {
+        // Check if user is admin
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can assign bins' });
+        }
+
+        const { binId, userId } = req.body;
+
+        const { data, error } = await supabase
+            .from('bins')
+            .update({ assigned_user_id: userId })
+            .eq('bin_id', binId);
+
+        if (error) throw error;
+        res.json({ message: 'Bin assigned successfully' });
+    } catch (error) {
+        console.error('Error assigning bin:', error);
+        res.status(500).json({ error: 'Failed to assign bin' });
+    }
+});
+
+// Get bin info with user check
+app.get('/api/bin-info/:binId', authenticateToken, async (req, res) => {
+    try {
+        const { binId } = req.params;
+
+        const { data: bin, error } = await supabase
+            .from('bins')
+            .select('*')
+            .eq('bin_id', binId)
+            .single();
+
+        if (error) throw error;
+
+        // Check if user has access to this bin
+        if (bin.assigned_user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'You do not have access to this bin' });
+        }
+
+        res.json(bin);
+    } catch (error) {
+        console.error('Error fetching bin info:', error);
+        res.status(500).json({ error: 'Failed to fetch bin information' });
+    }
+});
+
 // Catch-all route for SPA - must be after all other routes
 app.get('*', (req, res) => {
     try {

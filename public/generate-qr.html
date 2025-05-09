@@ -27,6 +27,16 @@
             top: 20px;
             left: 20px;
         }
+        .error-message {
+            color: #dc3545;
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+        .success-message {
+            color: #28a745;
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -43,19 +53,27 @@
                         
                         <div class="mb-3">
                             <label for="binId" class="form-label">Bin ID:</label>
-                            <input type="text" class="form-control" id="binId" value="WPBIN001" placeholder="Enter Bin ID">
+                            <input type="text" class="form-control" id="binId" placeholder="Enter Bin ID (e.g., WPBIN001)">
                         </div>
 
-                        <button onclick="generateQR()" class="btn btn-primary w-100">Generate QR Code</button>
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location:</label>
+                            <input type="text" class="form-control" id="location" placeholder="Enter bin location">
+                        </div>
+
+                        <button onclick="generateQR()" class="btn btn-primary w-100 mb-3">Generate QR Code</button>
+                        <button onclick="saveQR()" class="btn btn-success w-100" id="saveBtn" style="display: none;">Save QR Code</button>
 
                         <div id="qrContainer" class="qr-container" style="display: none;">
                             <h4>Bin QR Code</h4>
                             <div id="qrcode"></div>
                             <p class="mt-2" id="qrUrl"></p>
-                            <button onclick="downloadQR()" class="btn btn-success download-btn">
+                            <button onclick="downloadQR()" class="btn btn-info download-btn">
                                 <i class="bi bi-download"></i> Download QR Code
                             </button>
                         </div>
+
+                        <div id="message" class="mt-3"></div>
                     </div>
                 </div>
             </div>
@@ -63,10 +81,25 @@
     </div>
 
     <script>
+        let currentQRUrl = '';
+
+        function showMessage(message, type = 'error') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
+        }
+
         function generateQR() {
             const binId = document.getElementById('binId').value.trim();
+            const location = document.getElementById('location').value.trim();
+
             if (!binId) {
-                alert('Please enter a Bin ID');
+                showMessage('Please enter a Bin ID');
+                return;
+            }
+
+            if (!location) {
+                showMessage('Please enter a location');
                 return;
             }
 
@@ -75,13 +108,13 @@
             
             // Generate the URL
             const baseUrl = window.location.origin;
-            const qrUrl = `${baseUrl}/client-dashboard/${binId}`;
+            currentQRUrl = `${baseUrl}/client-dashboard/${binId}`;
             
             // Display the URL
-            document.getElementById('qrUrl').textContent = qrUrl;
+            document.getElementById('qrUrl').textContent = currentQRUrl;
             
             // Generate QR code
-            QRCode.toCanvas(document.getElementById('qrcode'), qrUrl, {
+            QRCode.toCanvas(document.getElementById('qrcode'), currentQRUrl, {
                 width: 256,
                 margin: 1,
                 color: {
@@ -89,18 +122,63 @@
                     light: '#ffffff'
                 }
             }, function (error) {
-                if (error) console.error(error);
+                if (error) {
+                    console.error(error);
+                    showMessage('Error generating QR code');
+                    return;
+                }
                 console.log('QR Code generated successfully');
+                showMessage('QR Code generated successfully! Click Save to store in database.', 'success');
+                document.getElementById('saveBtn').style.display = 'block';
             });
 
             // Show the container
             document.getElementById('qrContainer').style.display = 'block';
         }
 
+        async function saveQR() {
+            const binId = document.getElementById('binId').value.trim();
+            const location = document.getElementById('location').value.trim();
+            const saveBtn = document.getElementById('saveBtn');
+
+            try {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+
+                const response = await fetch('/api/save-qr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        binId,
+                        location
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to save QR code');
+                }
+
+                showMessage('QR code saved successfully!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            } catch (error) {
+                console.error('Error saving QR code:', error);
+                showMessage(error.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = 'Save QR Code';
+            }
+        }
+
         function downloadQR() {
             const canvas = document.querySelector('#qrcode canvas');
             if (!canvas) {
-                alert('Please generate a QR code first');
+                showMessage('Please generate a QR code first');
                 return;
             }
 
@@ -112,9 +190,6 @@
             link.click();
             document.body.removeChild(link);
         }
-
-        // Generate QR code on page load
-        window.onload = generateQR;
     </script>
 </body>
 </html> 

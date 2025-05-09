@@ -642,6 +642,56 @@ app.get('/api/check-rls', async (req, res) => {
     }
 });
 
+// Save QR Code Information
+app.post('/api/save-qr', async (req, res) => {
+    try {
+        const { binId, location } = req.body;
+        
+        if (!binId || !location) {
+            return res.status(400).json({ 
+                error: "Missing required fields",
+                message: "Bin ID and location are required"
+            });
+        }
+
+        // Generate QR URL
+        const baseUrl = process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app';
+        const qrUrl = `${baseUrl}/client-dashboard/${binId}`;
+
+        // Save to database
+        const { data, error } = await supabase
+            .from('bins')
+            .insert({
+                bin_id: binId,
+                location: location,
+                qr_url: qrUrl,
+                waste_level: 0,
+                last_pickup: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error saving QR code:', error);
+            return res.status(500).json({ 
+                error: "Database error",
+                details: error.message
+            });
+        }
+
+        res.status(201).json({ 
+            message: "QR code saved successfully",
+            bin: data
+        });
+    } catch (error) {
+        console.error('Error in save-qr endpoint:', error);
+        res.status(500).json({ 
+            error: "Server error",
+            details: error.message
+        });
+    }
+});
+
 // Catch-all route for SPA - must be after all other routes
 app.get('*', (req, res) => {
     try {

@@ -280,6 +280,8 @@
             const role = document.getElementById('roleSelect').value;
             const button = document.querySelector('#signupForm button');
 
+            console.log('Registration attempt:', { name, email, role });
+
             if (!name || !email || !password) {
                 showMessage('signupMessage', 'Please fill in all fields');
                 return;
@@ -293,6 +295,7 @@
             showLoading(button);
 
             try {
+                console.log('Sending registration request...');
                 const response = await fetch(`${API_URL}/register`, {
                     method: 'POST',
                     headers: {
@@ -302,15 +305,18 @@
                     body: JSON.stringify({ name, email, password, role }),
                 });
 
+                console.log('Registration response status:', response.status);
                 const data = await response.json();
+                console.log('Registration response data:', data);
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Registration failed');
+                    throw new Error(data.error || data.details || 'Registration failed');
                 }
 
                 showMessage('signupMessage', 'Registration successful! Please login.', 'success');
                 setTimeout(showLogin, 2000);
             } catch (error) {
+                console.error('Registration error:', error);
                 showMessage('signupMessage', error.message);
             } finally {
                 hideLoading(button);

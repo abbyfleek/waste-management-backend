@@ -153,15 +153,21 @@ app.get('/generate-qr', (req, res) => {
 // User Signup & Role Assignment
 app.post('/api/register', validateRegistration, async (req, res) => {
     try {
-        console.log('Registration attempt:', { email: req.body.email, role: req.body.role });
+        console.log('Registration attempt:', { 
+            email: req.body.email, 
+            role: req.body.role,
+            name: req.body.name 
+        });
         
         const { email, password, role = "client", name } = req.body;
 
         if (!name) {
+            console.log('Name validation failed');
             return res.status(400).json({ error: "Name is required" });
         }
 
         // First check if user already exists in the users table
+        console.log('Checking for existing user...');
         const { data: existingUsers, error: checkError } = await supabase
             .from("users")
             .select("id")
@@ -180,6 +186,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
 
+        console.log('Creating user in Supabase Auth...');
         // Create user in Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
@@ -211,6 +218,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         console.log('Auth user created successfully:', authData.user.id);
 
         // Insert user into users table
+        console.log('Inserting user into users table...');
         const { error: insertError } = await supabase
             .from("users")
             .insert({

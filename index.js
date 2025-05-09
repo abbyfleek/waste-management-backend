@@ -6,7 +6,7 @@ import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import { supabase, serviceClient } from './supabase.js';
+import { supabase, serviceClient, testConnection } from './supabase.js';
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +20,64 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+
+// Authentication middleware
+const authenticateToken = async (req, res, next) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        if (!authHeader) {
+            console.log('No authorization header');
+            return res.status(401).json({ error: 'No authorization header' });
+        }
+
+        const token = authHeader.split(' ')[1];
+        if (!token) {
+            console.log('No token provided');
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        console.log('Verifying token...');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        
+        if (authError) {
+            console.error('Auth error:', authError);
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        if (!user) {
+            console.log('No user found');
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        console.log('Getting user role...');
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        if (userError) {
+            console.error('User data error:', userError);
+            return res.status(401).json({ error: 'Error fetching user data' });
+        }
+
+        if (!userData) {
+            console.log('No user data found');
+            return res.status(401).json({ error: 'User data not found' });
+        }
+
+        req.user = {
+            id: user.id,
+            role: userData.role
+        };
+
+        console.log('Authentication successful');
+        next();
+    } catch (error) {
+        console.error('Authentication error:', error);
+        res.status(500).json({ error: 'Authentication failed', details: error.message });
+    }
+};
 
 // Serve static files from the public directory
 app.use(express.static(join(__dirname, 'public')));
@@ -97,7 +155,11 @@ app.post('/api/register', validateRegistration, async (req, res) => {
     try {
         console.log('Registration attempt:', { email: req.body.email, role: req.body.role });
         
-        const { email, password, role = "client" } = req.body;
+        const { email, password, role = "client", name } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ error: "Name is required" });
+        }
 
         // First check if user already exists in the users table
         const { data: existingUsers, error: checkError } = await supabase
@@ -118,25 +180,27 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
 
-        // Proceed with auth signup using service client with email confirmed
-        const { data, error } = await serviceClient.auth.admin.createUser({
+        // Create user in Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
             password,
-            email_confirm: true, // Auto-confirm email
-            user_metadata: {
-                role: role
+            options: {
+                data: {
+                    role: role,
+                    name: name
+                }
             }
         });
 
-        if (error) {
-            console.error('Supabase auth error:', error);
+        if (authError) {
+            console.error('Supabase auth error:', authError);
             return res.status(400).json({ 
                 error: "Registration failed", 
-                details: error.message 
+                details: authError.message 
             });
         }
 
-        if (!data.user) {
+        if (!authData.user) {
             console.error('No user data returned from signup');
             return res.status(500).json({ 
                 error: "Registration failed", 
@@ -144,23 +208,24 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             });
         }
 
-        console.log('Auth user created successfully:', data.user.id);
+        console.log('Auth user created successfully:', authData.user.id);
 
-        // Insert user into users table with email_confirmed set to true
-        const { error: insertError } = await serviceClient
+        // Insert user into users table
+        const { error: insertError } = await supabase
             .from("users")
             .insert({
-                id: data.user.id,
+                id: authData.user.id,
                 email: email,
                 role: role,
-                email_confirmed: true, // Set email as confirmed
+                name: name,
+                email_confirmed: true,
                 created_at: new Date().toISOString()
             });
 
         if (insertError) {
             console.error('Error inserting user:', insertError);
             // Try to clean up the auth user if we can't insert into the users table
-            await serviceClient.auth.admin.deleteUser(data.user.id);
+            await supabase.auth.admin.deleteUser(authData.user.id);
             return res.status(500).json({ 
                 error: "Failed to create user profile", 
                 details: insertError.message 
@@ -171,9 +236,10 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         res.status(200).json({ 
             message: "Registration successful! You can now login.", 
             user: { 
-                id: data.user.id,
-                email: data.user.email,
-                role: role
+                id: authData.user.id,
+                email: authData.user.email,
+                role: role,
+                name: name
             }
         });
     } catch (error) {
@@ -407,12 +473,27 @@ app.post('/api/update-waste-level', async (req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
-        message: 'Server is running',
-        environment: process.env.NODE_ENV || 'development'
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        const isConnected = await testConnection();
+        if (!isConnected) {
+            return res.status(500).json({ 
+                status: 'error',
+                message: 'Database connection failed'
+            });
+        }
+        res.json({ 
+            status: 'ok',
+            message: 'Server is running',
+            environment: process.env.NODE_ENV || 'development'
+        });
+    } catch (error) {
+        console.error('Health check failed:', error);
+        res.status(500).json({ 
+            status: 'error',
+            message: 'Server health check failed'
+        });
+    }
 });
 
 // Test database connection
@@ -756,6 +837,301 @@ app.get('/api/bin-info/:binId', authenticateToken, async (req, res) => {
     }
 });
 
+// Schedule pickup for a bin
+app.post('/api/schedule-pickup', authenticateToken, async (req, res) => {
+    try {
+        const { binId, scheduledDate, scheduledTime, notes } = req.body;
+        
+        // Validate input
+        if (!binId || !scheduledDate || !scheduledTime) {
+            return res.status(400).json({ error: "Bin ID, date, and time are required" });
+        }
+
+        // Check if user has access to the bin
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select('assigned_user_id')
+            .eq('bin_id', binId)
+            .single();
+
+        if (binError) throw binError;
+
+        if (bin.assigned_user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "You don't have permission to schedule pickups for this bin" });
+        }
+
+        // Create pickup schedule
+        const { data, error } = await supabase
+            .from('pickup_schedules')
+            .insert({
+                bin_id: binId,
+                scheduled_date: scheduledDate,
+                scheduled_time: scheduledTime,
+                notes: notes || null
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Update bin's scheduled pickup
+        await supabase
+            .from('bins')
+            .update({ scheduled_pickup: `${scheduledDate}T${scheduledTime}` })
+            .eq('bin_id', binId);
+
+        res.status(201).json({ 
+            message: "Pickup scheduled successfully",
+            schedule: data
+        });
+    } catch (error) {
+        console.error('Error scheduling pickup:', error);
+        res.status(500).json({ error: "Failed to schedule pickup" });
+    }
+});
+
+// Get pickup schedules for a bin
+app.get('/api/pickup-schedules/:binId', authenticateToken, async (req, res) => {
+    try {
+        const { binId } = req.params;
+
+        // Check if user has access to the bin
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select('assigned_user_id')
+            .eq('bin_id', binId)
+            .single();
+
+        if (binError) throw binError;
+
+        if (bin.assigned_user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "You don't have permission to view schedules for this bin" });
+        }
+
+        // Get schedules
+        const { data, error } = await supabase
+            .from('pickup_schedules')
+            .select('*')
+            .eq('bin_id', binId)
+            .order('scheduled_date', { ascending: true });
+
+        if (error) throw error;
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching pickup schedules:', error);
+        res.status(500).json({ error: "Failed to fetch pickup schedules" });
+    }
+});
+
+// Update pickup schedule status
+app.patch('/api/pickup-schedules/:scheduleId', authenticateToken, async (req, res) => {
+    try {
+        const { scheduleId } = req.params;
+        const { status } = req.body;
+
+        if (!status || !['pending', 'completed', 'cancelled'].includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+
+        // Get the schedule to check permissions
+        const { data: schedule, error: scheduleError } = await supabase
+            .from('pickup_schedules')
+            .select('bin_id')
+            .eq('id', scheduleId)
+            .single();
+
+        if (scheduleError) throw scheduleError;
+
+        // Check if user has access to the bin
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select('assigned_user_id')
+            .eq('bin_id', schedule.bin_id)
+            .single();
+
+        if (binError) throw binError;
+
+        if (bin.assigned_user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "You don't have permission to update this schedule" });
+        }
+
+        // Update schedule
+        const { data, error } = await supabase
+            .from('pickup_schedules')
+            .update({ status })
+            .eq('id', scheduleId)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // If completed, update bin's waste level and last pickup
+        if (status === 'completed') {
+            await supabase
+                .from('bins')
+                .update({ 
+                    waste_level: 0,
+                    last_pickup: new Date().toISOString()
+                })
+                .eq('bin_id', schedule.bin_id);
+        }
+
+        res.json({ 
+            message: "Schedule updated successfully",
+            schedule: data
+        });
+    } catch (error) {
+        console.error('Error updating pickup schedule:', error);
+        res.status(500).json({ error: "Failed to update pickup schedule" });
+    }
+});
+
+// Create a new transaction
+app.post('/api/transactions', authenticateToken, async (req, res) => {
+    try {
+        const { binId, amount, paymentMethod, description } = req.body;
+
+        if (!binId || !amount || amount <= 0) {
+            return res.status(400).json({ error: "Bin ID and valid amount are required" });
+        }
+
+        // Check if user has access to the bin
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select('assigned_user_id')
+            .eq('bin_id', binId)
+            .single();
+
+        if (binError) throw binError;
+
+        if (bin.assigned_user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "You don't have permission to create transactions for this bin" });
+        }
+
+        // Create transaction
+        const { data, error } = await supabase
+            .from('transactions')
+            .insert({
+                bin_id: binId,
+                user_id: req.user.id,
+                amount,
+                payment_method: paymentMethod || null,
+                description: description || null
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json({ 
+            message: "Transaction created successfully",
+            transaction: data
+        });
+    } catch (error) {
+        console.error('Error creating transaction:', error);
+        res.status(500).json({ error: "Failed to create transaction" });
+    }
+});
+
+// Get transactions for a user
+app.get('/api/transactions', authenticateToken, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('transactions')
+            .select(`
+                *,
+                bins (
+                    bin_id,
+                    location
+                )
+            `)
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching transactions:', error);
+        res.status(500).json({ error: "Failed to fetch transactions" });
+    }
+});
+
+// Get transactions for a specific bin
+app.get('/api/transactions/bin/:binId', authenticateToken, async (req, res) => {
+    try {
+        const { binId } = req.params;
+
+        // Check if user has access to the bin
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select('assigned_user_id')
+            .eq('bin_id', binId)
+            .single();
+
+        if (binError) throw binError;
+
+        if (bin.assigned_user_id !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "You don't have permission to view transactions for this bin" });
+        }
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .select(`
+                *,
+                users (
+                    id,
+                    name,
+                    email
+                )
+            `)
+            .eq('bin_id', binId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching bin transactions:', error);
+        res.status(500).json({ error: "Failed to fetch bin transactions" });
+    }
+});
+
+// Update transaction status
+app.patch('/api/transactions/:transactionId', authenticateToken, async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+        const { status } = req.body;
+
+        if (!status || !['pending', 'completed', 'failed'].includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+
+        // Only admin can update transaction status
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: "Only admins can update transaction status" });
+        }
+
+        const { data, error } = await supabase
+            .from('transactions')
+            .update({ status })
+            .eq('id', transactionId)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.json({ 
+            message: "Transaction status updated successfully",
+            transaction: data
+        });
+    } catch (error) {
+        console.error('Error updating transaction:', error);
+        res.status(500).json({ error: "Failed to update transaction" });
+    }
+});
+
 // Catch-all route for SPA - must be after all other routes
 app.get('*', (req, res) => {
     try {
@@ -766,8 +1142,15 @@ app.get('*', (req, res) => {
     }
 });
 
-// Apply error handling middleware
-app.use(errorHandler);
+// Global error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Global error:', err);
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+});
 
 // Start server with error handling
 const server = app.listen(port, () => {

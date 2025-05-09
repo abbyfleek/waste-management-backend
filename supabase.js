@@ -4,47 +4,37 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-// Get environment variables with fallbacks
-const supabaseUrl = process.env.SUPABASE_URL || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
+// Get environment variables
+const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Validate configuration
-if (!supabaseKey) {
-    console.error('Error: SUPABASE_ANON_KEY is not set in environment variables');
-    process.exit(1);
+// Create Supabase clients
+const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+        autoRefreshToken: true,
+        persistSession: true
+    }
+});
+
+const serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false
+    }
+});
+
+// Function to test connection
+async function testConnection() {
+    try {
+        const { data, error } = await supabase.from('users').select('count').single();
+        if (error) throw error;
+        console.log('Supabase connection successful');
+        return true;
+    } catch (error) {
+        console.error('Supabase connection test failed:', error);
+        return false;
+    }
 }
 
-if (!supabaseServiceKey) {
-    console.error('Error: SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
-    process.exit(1);
-}
-
-// Create Supabase clients with error handling
-let supabase;
-let serviceClient;
-
-try {
-    // Regular client for normal operations
-    supabase = createClient(supabaseUrl, supabaseKey, {
-        auth: {
-            autoRefreshToken: true,
-            persistSession: true
-        }
-    });
-
-    // Service role client for admin operations
-    serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    });
-
-    console.log('Supabase clients initialized successfully');
-} catch (error) {
-    console.error('Error initializing Supabase clients:', error);
-    process.exit(1);
-}
-
-export { supabase, serviceClient };
+export { supabase, serviceClient, testConnection };

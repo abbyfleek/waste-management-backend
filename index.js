@@ -24,30 +24,6 @@ app.use(bodyParser.json());
 // Serve static files from the public directory
 app.use(express.static(join(__dirname, 'public')));
 
-// Initialize Supabase client with error handling
-const supabaseUrl = process.env.supabaseUrl || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
-const supabaseKey = process.env.supabaseKey;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-console.log('Environment check:', {
-    supabaseUrl: supabaseUrl ? 'Set' : 'Not set',
-    supabaseKey: supabaseKey ? 'Set' : 'Not set',
-    supabaseServiceKey: supabaseServiceKey ? 'Set' : 'Not set'
-});
-
-if (!supabaseKey || !supabaseServiceKey) {
-    console.error('Error: Supabase keys are not properly configured');
-    process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-const serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-        autoRefreshToken: false,
-        persistSession: false
-    }
-});
-
 // Test Supabase connection
 supabase.from('users').select('count').single()
     .then(() => console.log('Supabase connection successful'))
@@ -142,11 +118,11 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             return res.status(400).json({ error: "Email already registered. Please login or use a different email." });
         }
 
-        // Proceed with auth signup using service client
+        // Proceed with auth signup using service client with email confirmed
         const { data, error } = await serviceClient.auth.admin.createUser({
             email,
             password,
-            email_confirm: false, // Don't auto-confirm email
+            email_confirm: true, // Auto-confirm email
             user_metadata: {
                 role: role
             }
@@ -170,14 +146,14 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         console.log('Auth user created successfully:', data.user.id);
 
-        // Insert user into users table
+        // Insert user into users table with email_confirmed set to true
         const { error: insertError } = await serviceClient
             .from("users")
             .insert({
                 id: data.user.id,
                 email: email,
                 role: role,
-                email_confirmed: false,
+                email_confirmed: true, // Set email as confirmed
                 created_at: new Date().toISOString()
             });
 
@@ -191,20 +167,9 @@ app.post('/api/register', validateRegistration, async (req, res) => {
             });
         }
 
-        // Send confirmation email
-        const { error: emailError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
-            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/confirm-email`
-        });
-
-        if (emailError) {
-            console.error('Error sending confirmation email:', emailError);
-            // Don't fail registration if email sending fails
-            console.log('Continuing with registration despite email error');
-        }
-
         console.log('User registration completed successfully');
         res.status(200).json({ 
-            message: "Registration successful! Please check your email for confirmation.", 
+            message: "Registration successful! You can now login.", 
             user: { 
                 id: data.user.id,
                 email: data.user.email,
@@ -443,7 +408,27 @@ app.post('/api/update-waste-level', async (req, res, next) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Server is running' });
+    res.json({ 
+        status: 'ok', 
+        message: 'Server is running',
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// Test database connection
+app.get('/api/test-db', async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('users').select('count').single();
+        if (error) throw error;
+        res.json({ status: 'ok', message: 'Database connection successful' });
+    } catch (error) {
+        console.error('Database connection test failed:', error);
+        res.status(500).json({ 
+            status: 'error', 
+            message: 'Database connection failed',
+            error: error.message 
+        });
+    }
 });
 
 // Reset password endpoint
@@ -670,9 +655,31 @@ app.get('*', (req, res) => {
 // Apply error handling middleware
 app.use(errorHandler);
 
-// Start the server
-app.listen(port, () => {
+// Start server with error handling
+const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
+    console.log('Environment:', process.env.NODE_ENV || 'development');
+});
+
+// Handle server errors
+server.on('error', (error) => {
+    console.error('Server error:', error);
+    if (error.code === 'EADDRINUSE') {
+        console.error(`Port ${port} is already in use`);
+        process.exit(1);
+    }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
 });
 
 

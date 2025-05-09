@@ -1,24 +1,50 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-dotenv.config(); // Ensure dotenv is loaded for environment variables
 
-const supabaseUrl = process.env.supabaseUrl;
+// Load environment variables
+dotenv.config();
+
+// Get environment variables with fallbacks
+const supabaseUrl = process.env.supabaseUrl || 'https://fbpcfpplfetfcjzvgxnc.supabase.co';
 const supabaseKey = process.env.supabaseKey;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseKey || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
+// Validate configuration
+if (!supabaseKey) {
+    console.error('Error: SUPABASE_KEY is not set in environment variables');
+    process.exit(1);
 }
 
-// Regular client for normal operations
-const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseServiceKey) {
+    console.error('Error: SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
+    process.exit(1);
+}
 
-// Service role client for admin operations
-const serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-        autoRefreshToken: false,
-        persistSession: false
-    }
-});
+// Create Supabase clients with error handling
+let supabase;
+let serviceClient;
+
+try {
+    // Regular client for normal operations
+    supabase = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+            autoRefreshToken: true,
+            persistSession: true
+        }
+    });
+
+    // Service role client for admin operations
+    serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    });
+
+    console.log('Supabase clients initialized successfully');
+} catch (error) {
+    console.error('Error initializing Supabase clients:', error);
+    process.exit(1);
+}
 
 export { supabase, serviceClient };

@@ -104,6 +104,7 @@
         <div id="signupSection" style="display: none;">
             <h3>Signup</h3>
             <form id="signupForm" onsubmit="return false;">
+                <input type="text" id="signupName" placeholder="Full Name" class="form-control mb-2" style="width: 40%; margin:auto;" required>
                 <input type="email" id="signupEmail" placeholder="Signup Email" class="form-control mb-2" style="width: 40%; margin:auto;" required>
                 <input type="password" id="signupPassword" placeholder="Password" class="form-control mb-2" style="width: 40%; margin:auto;" required 
                        oninput="checkPasswordStrength(this.value)">
@@ -273,12 +274,13 @@
 
         // Auth Functions
         async function register() {
+            const name = document.getElementById('signupName').value;
             const email = document.getElementById('signupEmail').value;
             const password = document.getElementById('signupPassword').value;
             const role = document.getElementById('roleSelect').value;
             const button = document.querySelector('#signupForm button');
 
-            if (!email || !password) {
+            if (!name || !email || !password) {
                 showMessage('signupMessage', 'Please fill in all fields');
                 return;
             }
@@ -297,7 +299,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrfToken
                     },
-                    body: JSON.stringify({ email, password, role }),
+                    body: JSON.stringify({ name, email, password, role }),
                 });
 
                 const data = await response.json();

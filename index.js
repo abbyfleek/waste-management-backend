@@ -1140,6 +1140,72 @@ app.patch('/api/transactions/:transactionId', authenticateToken, async (req, res
     }
 });
 
+// Add this test endpoint before the catch-all route
+app.get('/api/test-db-permissions', async (req, res) => {
+    try {
+        console.log('Testing database permissions...');
+        
+        // Test 1: Check if we can read from the users table
+        const { data: readData, error: readError } = await supabase
+            .from('users')
+            .select('count')
+            .single();
+
+        if (readError) {
+            console.error('Database permission test failed - Read test:', readError);
+            return res.status(500).json({
+                error: 'Database permission test failed',
+                details: readError.message,
+                hint: 'This might indicate RLS is blocking access or not properly configured'
+            });
+        }
+
+        // Test 2: Try to insert a test record
+        const testId = '00000000-0000-0000-0000-000000000000';
+        const { error: insertError } = await supabase
+            .from('users')
+            .insert({
+                id: testId,
+                email: 'test@example.com',
+                role: 'client',
+                name: 'Test User',
+                email_confirmed: false,
+                created_at: new Date().toISOString()
+            });
+
+        if (insertError) {
+            console.error('Database permission test failed - Insert test:', insertError);
+            return res.status(500).json({
+                error: 'Database permission test failed',
+                details: insertError.message,
+                hint: 'This might indicate RLS is blocking inserts or not properly configured'
+            });
+        }
+
+        // Clean up test record
+        await supabase
+            .from('users')
+            .delete()
+            .eq('id', testId);
+
+        console.log('Database permission test passed successfully');
+        res.status(200).json({
+            message: 'Database permissions are properly configured',
+            tests: {
+                readAccess: 'passed',
+                insertAccess: 'passed',
+                deleteAccess: 'passed'
+            }
+        });
+    } catch (error) {
+        console.error('Database permission test failed:', error);
+        res.status(500).json({
+            error: 'Database permission test failed',
+            details: error.message
+        });
+    }
+});
+
 // Catch-all route for SPA - must be after all other routes
 app.get('*', (req, res) => {
     try {

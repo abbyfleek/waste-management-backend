@@ -168,7 +168,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         // First check if user already exists in the users table
         console.log('Checking for existing user...');
-        const { data: existingUsers, error: checkError } = await supabase
+        const { data: existingUsers, error: checkError } = await serviceClient
             .from("users")
             .select("id")
             .eq("email", email);
@@ -187,15 +187,14 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         }
 
         console.log('Creating user in Supabase Auth...');
-        // Create user in Supabase Auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // Create user in Supabase Auth using service client
+        const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
             email,
             password,
-            options: {
-                data: {
-                    role: role,
-                    name: name
-                }
+            email_confirm: true,
+            user_metadata: {
+                role: role,
+                name: name
             }
         });
 
@@ -217,9 +216,9 @@ app.post('/api/register', validateRegistration, async (req, res) => {
 
         console.log('Auth user created successfully:', authData.user.id);
 
-        // Insert user into users table
+        // Insert user into users table using service client
         console.log('Inserting user into users table...');
-        const { error: insertError } = await supabase
+        const { error: insertError } = await serviceClient
             .from("users")
             .insert({
                 id: authData.user.id,
@@ -233,7 +232,7 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         if (insertError) {
             console.error('Error inserting user:', insertError);
             // Try to clean up the auth user if we can't insert into the users table
-            await supabase.auth.admin.deleteUser(authData.user.id);
+            await serviceClient.auth.admin.deleteUser(authData.user.id);
             return res.status(500).json({ 
                 error: "Failed to create user profile", 
                 details: insertError.message 

@@ -1322,6 +1322,7 @@ app.use((err, req, res, next) => {
 const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
     console.log('Environment:', process.env.NODE_ENV || 'development');
+    testSupabaseConnection();
 });
 
 // Handle server errors

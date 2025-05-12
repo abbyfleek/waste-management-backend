@@ -1445,6 +1445,140 @@ app.get('/api/verify-user/:email', async (req, res) => {
     }
 });
 
+// Complete bin assignment process (admin only)
+app.post('/api/assign-bin-complete', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can assign bins' });
+        }
+
+        const { bin_id, user_email, location } = req.body;
+        console.log('Request body:', { bin_id, user_email, location });
+
+        // 1. Verify the user exists and is a client
+        const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('id, email, role')
+            .ilike('email', user_email.trim())
+            .single();
+
+        if (userError || !user) {
+            console.error('User lookup error:', userError);
+            return res.status(400).json({ error: 'User not found' });
+        }
+
+        if (user.role !== 'client') {
+            return res.status(400).json({ error: 'Can only assign bins to client users' });
+        }
+
+        // 2. Generate QR URL
+        const baseUrl = process.env.FRONTEND_URL || 'https://waste-management-backend-akyqu20eu-abbyfleeks-projects.vercel.app';
+        const qrUrl = `${baseUrl}/client-dashboard/${bin_id}`;
+
+        // 3. Check if bin exists
+        const { data: existingBin } = await supabase
+            .from('bins')
+            .select('bin_id')
+            .eq('bin_id', bin_id)
+            .single();
+
+        let result;
+        if (existingBin) {
+            // 4a. Update existing bin
+            const { data: updatedBin, error: updateError } = await supabase
+                .from('bins')
+                .update({
+                    assigned_user_id: user.id,
+                    location: location,
+                    qr_url: qrUrl,
+                    last_updated: new Date().toISOString()
+                })
+                .eq('bin_id', bin_id)
+                .select()
+                .single();
+
+            if (updateError) {
+                console.error('Bin update error:', updateError);
+                return res.status(400).json({ error: 'Failed to update bin' });
+            }
+            result = updatedBin;
+        } else {
+            // 4b. Create new bin
+            const { data: newBin, error: insertError } = await supabase
+                .from('bins')
+                .insert({
+                    bin_id: bin_id,
+                    assigned_user_id: user.id,
+                    location: location,
+                    qr_url: qrUrl,
+                    waste_level: 0,
+                    last_pickup: new Date().toISOString(),
+                    created_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('Bin creation error:', insertError);
+                return res.status(400).json({ error: 'Failed to create bin' });
+            }
+            result = newBin;
+        }
+
+        // 5. Return success response with all details
+        res.status(200).json({
+            message: 'Bin assigned successfully',
+            bin: {
+                bin_id: result.bin_id,
+                location: result.location,
+                qr_url: result.qr_url,
+                assigned_user: {
+                    id: user.id,
+                    email: user.email
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Complete bin assignment error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all bins with their assigned users (admin only)
+app.get('/api/admin/bins', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can view all bins' });
+        }
+
+        const { data: bins, error } = await supabase
+            .from('bins')
+            .select(`
+                *,
+                users:assigned_user_id (
+                    id,
+                    email,
+                    name
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching bins:', error);
+            return res.status(500).json({ error: 'Failed to fetch bins' });
+        }
+
+        res.json({
+            message: 'Bins retrieved successfully',
+            bins: bins
+        });
+    } catch (error) {
+        console.error('Error in get all bins:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Catch-all route for SPA - must be after all other routes
 app.get('*', (req, res) => {
     try {

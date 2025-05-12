@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generate Bin QR Code</title>
-    <!-- Updated QR code library with integrity check -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <title>Generate QR Code - Waste Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .qr-container {
             max-width: 300px;
@@ -15,296 +13,159 @@
             padding: 20px;
             border: 1px solid #ddd;
             border-radius: 8px;
-            text-align: center;
-        }
-        #qrcode {
-            margin: 20px auto;
-            display: flex;
-            justify-content: center;
-            padding: 20px;
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .download-btn {
-            margin-top: 20px;
+        .qr-code {
+            width: 100%;
+            margin: 10px 0;
         }
-        .back-btn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-        }
-        .error-message {
-            color: #dc3545;
-            margin-top: 5px;
-            font-size: 0.9rem;
-        }
-        .success-message {
-            color: #28a745;
-            margin-top: 5px;
-            font-size: 0.9rem;
-        }
-        #debugInfo {
-            margin-top: 10px;
+        .bin-info {
+            margin-top: 15px;
             padding: 10px;
             background: #f8f9fa;
             border-radius: 4px;
-            font-size: 0.8rem;
+        }
+        @media print {
+            .no-print {
+                display: none;
+            }
+            .qr-container {
+                border: none;
+                margin: 0;
+                padding: 0;
+            }
         }
     </style>
 </head>
-<body class="bg-light">
-    <a href="/" class="btn btn-secondary back-btn">
-        <i class="bi bi-arrow-left"></i> Back to Dashboard
-    </a>
-
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h3 class="text-center mb-4">Generate Bin QR Code</h3>
-                        
-                        <div class="mb-3">
-                            <label for="binId" class="form-label">Bin ID:</label>
-                            <input type="text" class="form-control" id="binId" placeholder="Enter Bin ID (e.g., WPBIN001)">
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="location" class="form-label">Location:</label>
-                            <input type="text" class="form-control" id="location" placeholder="Enter bin location">
-                        </div>
-
-                        <button onclick="generateQR()" class="btn btn-primary w-100 mb-3" id="generateBtn">Generate QR Code</button>
-                        <button onclick="saveQR()" class="btn btn-success w-100" id="saveBtn" style="display: none;">Save QR Code</button>
-
-                        <div id="qrContainer" class="qr-container" style="display: none;">
-                            <h4>Bin QR Code</h4>
-                            <div id="qrcode"></div>
-                            <p class="mt-2" id="qrUrl"></p>
-                            <button onclick="downloadQR()" class="btn btn-info download-btn">
-                                <i class="bi bi-download"></i> Download QR Code
-                            </button>
-                        </div>
-
-                        <div id="message" class="mt-3"></div>
-                        <div id="debugInfo"></div>
-                    </div>
-                </div>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark no-print">
+        <div class="container">
+            <a class="navbar-brand" href="#">Waste Management</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin-dashboard.html">Admin Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/generate-qr.html">Generate QR</a>
+                    </li>
+                </ul>
+                <button class="btn btn-outline-light" id="logoutBtn">Logout</button>
             </div>
         </div>
-    </div>
+    </nav>
 
-    <!-- Assign Bin to User Form -->
     <div class="container mt-4">
         <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card">
+            <div class="col-md-8">
+                <div class="card no-print">
+                    <div class="card-header">
+                        <h2 class="mb-0">Generate QR Code</h2>
+                    </div>
                     <div class="card-body">
-                        <h4 class="mb-3">Assign Bin to User</h4>
-                        <form id="assign-bin-form">
+                        <form id="qrForm">
                             <div class="mb-3">
-                                <label for="assignEmail" class="form-label">User Email:</label>
-                                <input type="email" class="form-control" id="assignEmail" name="email" required>
+                                <label class="form-label">Bin ID</label>
+                                <input type="text" class="form-control" id="binId" required>
                             </div>
                             <div class="mb-3">
-                                <label for="assignBinId" class="form-label">Bin ID:</label>
-                                <input type="text" class="form-control" id="assignBinId" name="binId" required>
+                                <label class="form-label">Location</label>
+                                <input type="text" class="form-control" id="location" required>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">Assign Bin</button>
+                            <button type="submit" class="btn btn-primary">Generate QR Code</button>
                         </form>
-                        <div id="assign-bin-result" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <!-- QR Code Display Area -->
+                <div id="qrDisplay" class="qr-container" style="display: none;">
+                    <div class="text-center">
+                        <h4>Bin QR Code</h4>
+                        <div id="qrcode" class="qr-code"></div>
+                        <div class="bin-info">
+                            <p><strong>Bin ID:</strong> <span id="displayBinId"></span></p>
+                            <p><strong>Location:</strong> <span id="displayLocation"></span></p>
+                        </div>
+                        <button class="btn btn-primary no-print" onclick="window.print()">
+                            <i class="fas fa-print"></i> Print QR Code
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.0/build/qrcode.min.js"></script>
     <script>
-        let currentQRUrl = '';
-        let qrcode = null;
-
-        // Add debug information
-        function updateDebugInfo(message) {
-            const debugDiv = document.getElementById('debugInfo');
-            debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+        // Check authentication
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login.html';
         }
 
-        function showMessage(message, type = 'error') {
-            const messageDiv = document.getElementById('message');
-            messageDiv.textContent = message;
-            messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
-            updateDebugInfo(`${type}: ${message}`);
-        }
-
-        function generateQR() {
-            updateDebugInfo('Starting QR code generation...');
+        // Handle form submission
+        document.getElementById('qrForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            const binId = document.getElementById('binId').value.trim();
-            const location = document.getElementById('location').value.trim();
-            const generateBtn = document.getElementById('generateBtn');
+            const binId = document.getElementById('binId').value;
+            const location = document.getElementById('location').value;
 
-            if (!binId) {
-                showMessage('Please enter a Bin ID');
-                return;
-            }
+            // Generate QR URL
+            const baseUrl = window.location.origin;
+            const qrUrl = `${baseUrl}/client-dashboard/${binId}`;
 
-            if (!location) {
-                showMessage('Please enter a location');
-                return;
-            }
+            // Display QR code
+            const qrDisplay = document.getElementById('qrDisplay');
+            qrDisplay.style.display = 'block';
 
+            // Update display information
+            document.getElementById('displayBinId').textContent = binId;
+            document.getElementById('displayLocation').textContent = location;
+
+            // Generate QR code
+            const qrcode = document.getElementById('qrcode');
+            qrcode.innerHTML = ''; // Clear previous QR code
+            QRCode.toCanvas(qrcode, qrUrl, {
+                width: 250,
+                margin: 1,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            });
+
+            // Save to database
             try {
-                // Disable generate button and show loading state
-                generateBtn.disabled = true;
-                generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
-
-                // Clear previous QR code
-                const qrcodeDiv = document.getElementById('qrcode');
-                qrcodeDiv.innerHTML = '';
-                
-                // Generate the URL
-                const baseUrl = window.location.origin;
-                currentQRUrl = `${baseUrl}/client-dashboard/${binId}`;
-                updateDebugInfo(`Generated URL: ${currentQRUrl}`);
-                
-                // Display the URL
-                document.getElementById('qrUrl').textContent = currentQRUrl;
-                
-                // Generate QR code
-                qrcode = new QRCode(qrcodeDiv, {
-                    text: currentQRUrl,
-                    width: 300,
-                    height: 300,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
-                });
-                
-                // Add scan instructions
-                const scanInstructions = document.createElement('p');
-                scanInstructions.className = 'text-muted mt-2';
-                scanInstructions.innerHTML = '<small>Scan this QR code with Google Lens or any QR code scanner</small>';
-                qrcodeDiv.appendChild(scanInstructions);
-                
-                updateDebugInfo('QR Code generated successfully');
-                showMessage('QR Code generated successfully! Click Save to store in database.', 'success');
-                document.getElementById('saveBtn').style.display = 'block';
-                document.getElementById('qrContainer').style.display = 'block';
-            } catch (error) {
-                console.error('Error generating QR code:', error);
-                updateDebugInfo(`Error: ${error.message}`);
-                showMessage('Error generating QR code. Please try again.');
-            } finally {
-                // Re-enable generate button
-                generateBtn.disabled = false;
-                generateBtn.innerHTML = 'Generate QR Code';
-            }
-        }
-
-        async function saveQR() {
-            const binId = document.getElementById('binId').value.trim();
-            const location = document.getElementById('location').value.trim();
-            const saveBtn = document.getElementById('saveBtn');
-
-            try {
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
-
                 const response = await fetch('/api/save-qr', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        binId,
-                        location
+                        binId: binId,
+                        location: location
                     })
                 });
 
                 const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to save QR code');
+                if (data.error) {
+                    throw new Error(data.error);
                 }
-
-                showMessage('QR code saved successfully!', 'success');
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 2000);
             } catch (error) {
                 console.error('Error saving QR code:', error);
-                showMessage(error.message);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = 'Save QR Code';
+                alert('QR code generated but failed to save to database: ' + error.message);
             }
-        }
+        });
 
-        function downloadQR() {
-            const canvas = document.querySelector('#qrcode canvas');
-            if (!canvas) {
-                showMessage('Please generate a QR code first');
-                return;
-            }
-
-            // Create a temporary link
-            const link = document.createElement('a');
-            link.download = `bin-qr-${document.getElementById('binId').value}.png`;
-            link.href = canvas.toDataURL('image/png');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // Check if QR code library is loaded
-        window.onload = function() {
-            if (typeof QRCode === 'undefined') {
-                showMessage('QR code library failed to load. Please refresh the page.');
-                updateDebugInfo('Error: QR code library not loaded');
-            } else {
-                updateDebugInfo('QR code library loaded successfully');
-            }
-        };
-
-        // Assign Bin to User Form Handler
-        document.getElementById('assign-bin-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const email = document.getElementById('assignEmail').value;
-            const binId = document.getElementById('assignBinId').value;
-            const resultDiv = document.getElementById('assign-bin-result');
-
-            // You need to get the admin's JWT token (e.g., from localStorage or your auth system)
-            const token = localStorage.getItem('token'); // Adjust this if you store the token differently
-
-            if (!token) {
-                resultDiv.textContent = 'You must be logged in as admin to assign bins.';
-                resultDiv.className = 'error-message';
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/assign-bin-by-email', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify({ email, binId })
-                });
-
-                const data = await response.json();
-                if (response.ok) {
-                    resultDiv.textContent = 'Bin assigned successfully!';
-                    resultDiv.className = 'success-message';
-                } else {
-                    resultDiv.textContent = 'Error: ' + (data.error || 'Unknown error');
-                    resultDiv.className = 'error-message';
-                }
-            } catch (err) {
-                resultDiv.textContent = 'Request failed: ' + err.message;
-                resultDiv.className = 'error-message';
-            }
+        // Logout handler
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
         });
     </script>
 </body>

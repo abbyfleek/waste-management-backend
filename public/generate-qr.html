@@ -95,6 +95,31 @@
         </div>
     </div>
 
+    <!-- Assign Bin to User Form -->
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h4 class="mb-3">Assign Bin to User</h4>
+                        <form id="assign-bin-form">
+                            <div class="mb-3">
+                                <label for="assignEmail" class="form-label">User Email:</label>
+                                <input type="email" class="form-control" id="assignEmail" name="email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="assignBinId" class="form-label">Bin ID:</label>
+                                <input type="text" class="form-control" id="assignBinId" name="binId" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Assign Bin</button>
+                        </form>
+                        <div id="assign-bin-result" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentQRUrl = '';
         let qrcode = null;
@@ -241,6 +266,46 @@
                 updateDebugInfo('QR code library loaded successfully');
             }
         };
+
+        // Assign Bin to User Form Handler
+        document.getElementById('assign-bin-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('assignEmail').value;
+            const binId = document.getElementById('assignBinId').value;
+            const resultDiv = document.getElementById('assign-bin-result');
+
+            // You need to get the admin's JWT token (e.g., from localStorage or your auth system)
+            const token = localStorage.getItem('token'); // Adjust this if you store the token differently
+
+            if (!token) {
+                resultDiv.textContent = 'You must be logged in as admin to assign bins.';
+                resultDiv.className = 'error-message';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/assign-bin-by-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ email, binId })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    resultDiv.textContent = 'Bin assigned successfully!';
+                    resultDiv.className = 'success-message';
+                } else {
+                    resultDiv.textContent = 'Error: ' + (data.error || 'Unknown error');
+                    resultDiv.className = 'error-message';
+                }
+            } catch (err) {
+                resultDiv.textContent = 'Request failed: ' + err.message;
+                resultDiv.className = 'error-message';
+            }
+        });
     </script>
 </body>
 </html> 

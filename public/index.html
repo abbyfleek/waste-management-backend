@@ -353,6 +353,11 @@
                     throw new Error(data.error || 'Login failed');
                 }
 
+                // Store the access token in localStorage
+                if (data.access_token) {
+                    localStorage.setItem('token', data.access_token);
+                }
+
                 // Hide login section
                 document.getElementById('loginSection').style.display = 'none';
 
@@ -476,6 +481,19 @@
                 videoContainer.appendChild(statusDiv);
             }
 
+            // Add a red border to the video for guidance
+            const video = document.getElementById('video');
+            video.style.border = '3px solid red';
+            video.style.boxSizing = 'border-box';
+
+            // Show loading message
+            document.getElementById('scanStatus').textContent = 'Starting camera...';
+
+            if (typeof jsQR === 'undefined') {
+                document.getElementById('scanStatus').textContent = 'QR code library failed to load. Please refresh the page.';
+                return;
+            }
+
             navigator.mediaDevices.getUserMedia({ 
                 video: { 
                     facingMode: "environment",
@@ -485,11 +503,10 @@
             })
             .then(function (stream) {
                 videoStream = stream;
-                const video = document.getElementById('video');
                 video.srcObject = stream;
                 video.setAttribute("playsinline", true);
                 video.play();
-                document.getElementById('scanStatus').textContent = 'Camera started. Looking for QR code...';
+                document.getElementById('scanStatus').textContent = 'Camera started. Hold a QR code inside the red box.';
                 requestAnimationFrame(scanQRCode);
             })
             .catch(function (err) {
@@ -505,11 +522,17 @@
             const context = canvas.getContext('2d');
             const statusElement = document.getElementById('scanStatus');
 
+            if (typeof jsQR === 'undefined') {
+                statusElement.textContent = 'QR code library not loaded. Please refresh the page.';
+                return;
+            }
+
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // Always match canvas size to video
                 canvas.height = video.videoHeight;
                 canvas.width = video.videoWidth;
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
+
                 try {
                     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
                     const code = jsQR(imageData.data, imageData.width, imageData.height, {
@@ -519,13 +542,12 @@
                     if (code) {
                         console.log('QR Code detected with data:', code.data);
                         statusElement.textContent = 'QR Code detected! Processing...';
-                        
                         // Validate QR code data
                         if (!code.data || typeof code.data !== 'string') {
                             console.error('Invalid QR code format:', code.data);
-                            throw new Error('Invalid QR code format');
+                            statusElement.textContent = 'Invalid QR code format. Try another QR code.';
+                            return;
                         }
-
                         // Extract bin ID from QR code data
                         let binId = code.data;
                         // If the QR code contains a URL, extract the bin ID from it
@@ -533,15 +555,18 @@
                             binId = code.data.split('/').pop();
                         }
                         console.log('Extracted bin ID:', binId);
-
                         stopQRScan();
                         await fetchBinInfo(binId);
                         return;
+                    } else {
+                        statusElement.textContent = 'Scanning... No QR code detected yet.';
                     }
                 } catch (error) {
                     console.error('Error scanning QR code:', error);
                     statusElement.textContent = 'Error scanning QR code. Please try again.';
                 }
+            } else {
+                statusElement.textContent = 'Waiting for camera...';
             }
 
             requestAnimationFrame(scanQRCode);

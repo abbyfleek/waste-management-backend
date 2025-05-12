@@ -161,10 +161,10 @@ app.get('/generate-qr', (req, res) => {
 // User Signup & Role Assignment
 app.post('/api/register', validateRegistration, async (req, res) => {
     try {
-        console.log('Registration attempt:', { 
-            email: req.body.email, 
-            role: req.body.role,
-            name: req.body.name 
+        console.log('Registration request received:', {
+            body: req.body,
+            headers: req.headers,
+            origin: req.headers.origin
         });
         
         const { email, password, role = "client", name } = req.body;
@@ -248,11 +248,11 @@ app.post('/api/register', validateRegistration, async (req, res) => {
         }
 
         console.log('User registration completed successfully');
-        res.status(200).json({ 
-            message: "Registration successful! You can now login.", 
-            user: { 
+        res.status(201).json({ 
+            message: "Registration successful",
+            user: {
                 id: authData.user.id,
-                email: authData.user.email,
+                email: email,
                 role: role,
                 name: name
             }
@@ -1210,6 +1210,91 @@ app.get('/api/test-db-permissions', async (req, res) => {
             error: 'Database permission test failed',
             details: error.message
         });
+    }
+});
+
+// Delete user endpoint (admin only)
+app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
+    try {
+        // Check if the requesting user is an admin
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can delete users' });
+        }
+
+        const { userId } = req.params;
+
+        // First delete from users table
+        const { error: deleteError } = await serviceClient
+            .from('users')
+            .delete()
+            .eq('id', userId);
+
+        if (deleteError) {
+            console.error('Error deleting user from users table:', deleteError);
+            return res.status(500).json({ 
+                error: 'Failed to delete user',
+                details: deleteError.message 
+            });
+        }
+
+        // Then delete from auth
+        const { error: authError } = await serviceClient.auth.admin.deleteUser(userId);
+
+        if (authError) {
+            console.error('Error deleting user from auth:', authError);
+            return res.status(500).json({ 
+                error: 'Failed to delete user from auth',
+                details: authError.message 
+            });
+        }
+
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ 
+            error: 'Failed to delete user',
+            details: error.message 
+        });
+    }
+});
+
+// Assign bin to user by email (admin only)
+app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can assign bins' });
+        }
+
+        const { email, binId } = req.body;
+        if (!email || !binId) {
+            return res.status(400).json({ error: 'Email and binId are required' });
+        }
+
+        // Find user by email
+        const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
+
+        if (userError || !user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Assign bin to user
+        const { error: binError } = await supabase
+            .from('bins')
+            .update({ assigned_user_id: user.id })
+            .eq('bin_id', binId);
+
+        if (binError) {
+            return res.status(500).json({ error: 'Failed to assign bin', details: binError.message });
+        }
+
+        res.json({ message: 'Bin assigned to user successfully' });
+    } catch (error) {
+        console.error('Error assigning bin by email:', error);
+        res.status(500).json({ error: 'Failed to assign bin', details: error.message });
     }
 });
 

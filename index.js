@@ -91,12 +91,14 @@ const authenticateToken = async (req, res, next) => {
 app.use(express.static(join(__dirname, 'public')));
 
 // Test Supabase connection
-supabase.from('users').select('count').single()
-    .then(() => console.log('Supabase connection successful'))
-    .catch(error => {
+async function testSupabaseConnection() {
+    try {
+        await supabase.from('users').select('count').single();
+        console.log('Supabase connection successful');
+    } catch (error) {
         console.error('Supabase connection error:', error);
-        process.exit(1);
-    });
+    }
+}
 
 // Input validation middleware
 const validateRegistration = (req, res, next) => {
@@ -333,14 +335,15 @@ app.post('/api/login', async (req, res, next) => {
             return res.status(400).json({ error: error.message });
         }
 
-        await checkUserRole(data.user, res);
+        // Pass the session (which contains access_token) to checkUserRole
+        await checkUserRole(data.user, res, data.session);
     } catch (error) {
         next(error);
     }
 });
 
 // Check User Role
-async function checkUserRole(user, res) {
+async function checkUserRole(user, res, session) {
     try {
         const { data, error } = await supabase
             .from('users')
@@ -366,12 +369,14 @@ async function checkUserRole(user, res) {
             res.status(200).json({ 
                 role: "admin", 
                 bins,
-                message: "Welcome to Admin Dashboard"
+                message: "Welcome to Admin Dashboard",
+                access_token: session?.access_token
             });
         } else if (role === "client") {
             res.status(200).json({ 
                 role: "client", 
-                message: "Welcome to Client Dashboard" 
+                message: "Welcome to Client Dashboard",
+                access_token: session?.access_token
             });
         } else {
             throw new Error("Invalid user role");

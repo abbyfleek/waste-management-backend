@@ -1263,6 +1263,36 @@ app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
     }
 });
 
+// Get all client users (admin only)
+app.get('/api/client-users', authenticateToken, async (req, res) => {
+    try {
+        // Check if user is admin
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can view client users' });
+        }
+
+        // Get all users with role 'client'
+        const { data: clients, error } = await supabase
+            .from('users')
+            .select('id, email, name, created_at')
+            .eq('role', 'client')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching client users:', error);
+            return res.status(500).json({ error: 'Failed to fetch client users' });
+        }
+
+        res.json({ 
+            message: 'Client users retrieved successfully',
+            clients: clients
+        });
+    } catch (error) {
+        console.error('Error in get client users:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Assign bin to user by email (admin only)
 app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
     try {
@@ -1271,30 +1301,38 @@ app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
         }
 
         const { bin_id, email } = req.body;
-        console.log('Request body:', { bin_id, email }); // Log the request body
+        console.log('Request body:', { bin_id, email });
 
-        // First, let's check if the user exists in the users table
-        const { data: allUsers, error: listError } = await supabase
-            .from('users')
-            .select('id, email')
-            .ilike('email', email.trim());
+        // First verify the bin exists
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select('bin_id')
+            .eq('bin_id', bin_id)
+            .single();
 
-        console.log('All matching users:', allUsers); // Log all matching users
-
-        if (listError) {
-            console.error('Error listing users:', listError);
-            return res.status(500).json({ error: 'Error checking users' });
+        if (binError || !bin) {
+            console.error('Bin not found:', binError);
+            return res.status(400).json({ error: 'Bin not found' });
         }
 
-        if (!allUsers || allUsers.length === 0) {
-            console.log('No users found with email:', email);
+        // Find user by email (case-insensitive)
+        const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('id, email, role')
+            .ilike('email', email.trim())
+            .single();
+
+        if (userError || !user) {
+            console.error('User lookup error:', userError);
             return res.status(400).json({ error: 'User not found' });
         }
 
-        const user = allUsers[0];
-        console.log('Found user:', user); // Log the found user
+        // Verify user is a client
+        if (user.role !== 'client') {
+            return res.status(400).json({ error: 'Can only assign bins to client users' });
+        }
 
-        // Assign bin to user using the correct column name 'assigned_user_id'
+        // Assign bin to user
         const { error: assignError } = await supabase
             .from('bins')
             .update({ assigned_user_id: user.id })
@@ -1305,9 +1343,104 @@ app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Failed to assign bin' });
         }
 
-        res.status(200).json({ message: 'Bin assigned successfully' });
+        res.status(200).json({ 
+            message: 'Bin assigned successfully',
+            user: {
+                id: user.id,
+                email: user.email
+            }
+        });
     } catch (error) {
         console.error('Assign bin error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test endpoint to create a test user
+app.post('/api/create-test-user', async (req, res) => {
+    try {
+        const testEmail = 'test@example.com';
+        const testPassword = 'Test123!@#';
+        const testName = 'Test User';
+
+        // First check if user already exists
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', testEmail)
+            .single();
+
+        if (existingUser) {
+            return res.json({ 
+                message: 'Test user already exists',
+                user: existingUser
+            });
+        }
+
+        // Create user in Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email: testEmail,
+            password: testPassword,
+            email_confirm: true,
+            user_metadata: {
+                name: testName,
+                role: 'client'
+            }
+        });
+
+        if (authError) {
+            throw authError;
+        }
+
+        // Insert into users table
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .insert({
+                id: authData.user.id,
+                email: testEmail,
+                name: testName,
+                role: 'client',
+                email_confirmed: true,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (userError) {
+            throw userError;
+        }
+
+        res.json({ 
+            message: 'Test user created successfully',
+            user: userData
+        });
+    } catch (error) {
+        console.error('Error creating test user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test endpoint to verify user exists
+app.get('/api/verify-user/:email', async (req, res) => {
+    try {
+        const { email } = req.params;
+        
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .single();
+
+        if (error) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json({ 
+            message: 'User found',
+            user: user
+        });
+    } catch (error) {
+        console.error('Error verifying user:', error);
         res.status(500).json({ error: error.message });
     }
 });

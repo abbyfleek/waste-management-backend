@@ -139,6 +139,11 @@
                 const binsGrid = document.getElementById('binsGrid');
                 binsGrid.innerHTML = '';
 
+                if (!data.bins || data.bins.length === 0) {
+                    binsGrid.innerHTML = '<div class="col-12"><div class="alert alert-info">No bins found. Add a new bin to get started.</div></div>';
+                    return;
+                }
+
                 data.bins.forEach(bin => {
                     const wasteLevel = bin.waste_level || 0;
                     const wasteLevelClass = wasteLevel > 80 ? 'waste-level-high' : 
@@ -201,6 +206,11 @@
                 const clientList = document.getElementById('clientList');
                 clientList.innerHTML = '';
                 
+                if (!data.clients || data.clients.length === 0) {
+                    alert('No clients found. Please add some clients first.');
+                    return;
+                }
+
                 data.clients.forEach(client => {
                     const option = document.createElement('option');
                     option.value = client.email;
@@ -218,6 +228,11 @@
             const binId = document.getElementById('binId').value;
             const clientEmail = document.getElementById('clientEmail').value;
             const location = document.getElementById('location').value;
+
+            if (!binId || !clientEmail || !location) {
+                alert('Please fill in all fields');
+                return;
+            }
 
             try {
                 const response = await fetch('/api/assign-bin-complete', {

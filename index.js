@@ -1271,19 +1271,28 @@ app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
         }
 
         const { bin_id, email } = req.body;
-        console.log('Assigning bin to email:', email); // Debug log
+        console.log('Request body:', { bin_id, email }); // Log the request body
 
-        // Find user by email (case-insensitive, trimmed)
-        const { data: user, error: userError } = await supabase
+        // First, let's check if the user exists in the users table
+        const { data: allUsers, error: listError } = await supabase
             .from('users')
-            .select('id')
-            .ilike('email', email.trim())
-            .single();
+            .select('id, email')
+            .ilike('email', email.trim());
 
-        if (userError) {
-            console.error('User lookup error:', userError); // Debug log
+        console.log('All matching users:', allUsers); // Log all matching users
+
+        if (listError) {
+            console.error('Error listing users:', listError);
+            return res.status(500).json({ error: 'Error checking users' });
+        }
+
+        if (!allUsers || allUsers.length === 0) {
+            console.log('No users found with email:', email);
             return res.status(400).json({ error: 'User not found' });
         }
+
+        const user = allUsers[0];
+        console.log('Found user:', user); // Log the found user
 
         // Assign bin to user using the correct column name 'assigned_user_id'
         const { error: assignError } = await supabase
@@ -1292,13 +1301,13 @@ app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
             .eq('bin_id', bin_id);
 
         if (assignError) {
-            console.error('Bin assignment error:', assignError); // Debug log
+            console.error('Bin assignment error:', assignError);
             return res.status(400).json({ error: 'Failed to assign bin' });
         }
 
         res.status(200).json({ message: 'Bin assigned successfully' });
     } catch (error) {
-        console.error('Assign bin error:', error); // Debug log
+        console.error('Assign bin error:', error);
         res.status(500).json({ error: error.message });
     }
 });

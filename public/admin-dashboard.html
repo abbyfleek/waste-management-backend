@@ -192,7 +192,7 @@
         // Function to fetch and populate client list
         async function fetchClients() {
             try {
-                const response = await fetch('/api/client-users', {
+                const response = await fetch('/api/users', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -206,20 +206,20 @@
                 const clientList = document.getElementById('clientList');
                 clientList.innerHTML = '';
                 
-                if (!data.clients || data.clients.length === 0) {
-                    alert('No clients found. Please add some clients first.');
+                if (!data.users || data.users.length === 0) {
+                    alert('No users found. Please add some users first.');
                     return;
                 }
 
-                data.clients.forEach(client => {
+                data.users.forEach(user => {
                     const option = document.createElement('option');
-                    option.value = client.email;
-                    option.textContent = `${client.name} (${client.email})`;
+                    option.value = user.email;
+                    option.textContent = `${user.name} (${user.email})`;
                     clientList.appendChild(option);
                 });
             } catch (error) {
-                console.error('Error fetching clients:', error);
-                alert('Error loading client list: ' + error.message);
+                console.error('Error fetching users:', error);
+                alert('Error loading user list: ' + error.message);
             }
         }
 
@@ -235,7 +235,7 @@
             }
 
             try {
-                const response = await fetch('/api/assign-bin-complete', {
+                const response = await fetch('/api/assign-bin', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

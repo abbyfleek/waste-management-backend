@@ -91,9 +91,13 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Client Email</label>
-                            <select class="form-select" id="userEmail" required>
-                                <option value="">Select a client...</option>
-                            </select>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="clientEmail" list="clientList" required>
+                                <datalist id="clientList"></datalist>
+                                <button class="btn btn-outline-secondary" type="button" id="refreshClients">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Location</label>
@@ -180,8 +184,8 @@
             }
         }
 
-        // Load client users for dropdown
-        async function loadClientUsers() {
+        // Function to fetch and populate client list
+        async function fetchClients() {
             try {
                 const response = await fetch('/api/client-users', {
                     headers: {
@@ -194,24 +198,25 @@
                     throw new Error(data.error);
                 }
 
-                const userSelect = document.getElementById('userEmail');
-                userSelect.innerHTML = '<option value="">Select a client...</option>';
+                const clientList = document.getElementById('clientList');
+                clientList.innerHTML = '';
                 
                 data.clients.forEach(client => {
-                    userSelect.innerHTML += `
-                        <option value="${client.email}">${client.name} (${client.email})</option>
-                    `;
+                    const option = document.createElement('option');
+                    option.value = client.email;
+                    option.textContent = `${client.name} (${client.email})`;
+                    clientList.appendChild(option);
                 });
             } catch (error) {
-                console.error('Error loading clients:', error);
-                alert('Failed to load clients: ' + error.message);
+                console.error('Error fetching clients:', error);
+                alert('Error loading client list: ' + error.message);
             }
         }
 
         // Assign new bin
         async function assignBin() {
             const binId = document.getElementById('binId').value;
-            const userEmail = document.getElementById('userEmail').value;
+            const clientEmail = document.getElementById('clientEmail').value;
             const location = document.getElementById('location').value;
 
             try {
@@ -223,7 +228,7 @@
                     },
                     body: JSON.stringify({
                         bin_id: binId,
-                        user_email: userEmail,
+                        user_email: clientEmail,
                         location: location
                     })
                 });
@@ -255,10 +260,11 @@
             localStorage.removeItem('token');
             window.location.href = '/login.html';
         });
+        document.getElementById('refreshClients').addEventListener('click', fetchClients);
 
         // Load initial data
         loadBins();
-        loadClientUsers();
+        fetchClients();
     </script>
 </body>
 </html> 

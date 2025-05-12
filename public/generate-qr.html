@@ -47,7 +47,9 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/admin-dashboard.html">Admin Dashboard</a>
+                        <a class="nav-link btn btn-primary text-white me-2" href="/admin-dashboard.html">
+                            <i class="fas fa-cog"></i> Admin Dashboard
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link active" href="/generate-qr.html">Generate QR</a>
@@ -114,33 +116,36 @@
             const binId = document.getElementById('binId').value;
             const location = document.getElementById('location').value;
 
-            // Generate QR URL
-            const baseUrl = window.location.origin;
-            const qrUrl = `${baseUrl}/bin-details/${binId}?location=${encodeURIComponent(location)}`;
-
-            // Display QR code
-            const qrCodeDiv = document.getElementById('qrCode');
-            qrCodeDiv.innerHTML = '';
-            new QRCode(qrCodeDiv, {
-                text: qrUrl,
-                width: 200,
-                height: 200,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
-
-            // Show bin information
-            document.getElementById('binInfo').innerHTML = `
-                <div class="alert alert-info">
-                    <h5>Bin Information</h5>
-                    <p><strong>Bin ID:</strong> ${binId}</p>
-                    <p><strong>Location:</strong> ${location}</p>
-                </div>
-            `;
-
-            // Save to database
             try {
+                // Generate QR URL
+                const baseUrl = window.location.origin;
+                const qrUrl = `${baseUrl}/bin-details/${binId}?location=${encodeURIComponent(location)}`;
+
+                // Display QR code
+                const qrCodeDiv = document.getElementById('qrCode');
+                qrCodeDiv.innerHTML = '';
+                new QRCode(qrCodeDiv, {
+                    text: qrUrl,
+                    width: 200,
+                    height: 200,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+
+                // Show bin information
+                document.getElementById('binInfo').innerHTML = `
+                    <div class="alert alert-info">
+                        <h5>Bin Information</h5>
+                        <p><strong>Bin ID:</strong> ${binId}</p>
+                        <p><strong>Location:</strong> ${location}</p>
+                    </div>
+                `;
+
+                // Show the QR display area
+                document.getElementById('qrDisplay').style.display = 'block';
+
+                // Save to database
                 const response = await fetch('/api/save-qr', {
                     method: 'POST',
                     headers: {
@@ -157,9 +162,11 @@
                 if (data.error) {
                     throw new Error(data.error);
                 }
+
+                alert('QR code generated and saved successfully!');
             } catch (error) {
-                console.error('Error saving QR code:', error);
-                alert('QR code generated but failed to save to database: ' + error.message);
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
             }
         });
 

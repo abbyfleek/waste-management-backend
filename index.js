@@ -18,8 +18,16 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:3000', 'https://waste-management-backend-3zikhxwc9-abbyfleeks-projects.vercel.app'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+    credentials: true
+}));
 app.use(bodyParser.json());
+
+// Set FRONTEND_URL environment variable
+process.env.FRONTEND_URL = 'https://waste-management-backend-3zikhxwc9-abbyfleeks-projects.vercel.app';
 
 // Authentication middleware
 const authenticateToken = async (req, res, next) => {

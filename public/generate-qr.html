@@ -84,7 +84,7 @@
                 <div id="qrDisplay" class="qr-container" style="display: none;">
                     <div class="text-center">
                         <h4>Bin QR Code</h4>
-                        <div id="qrcode" class="qr-code"></div>
+                        <div id="qrCode" class="qr-code"></div>
                         <div class="bin-info">
                             <p><strong>Bin ID:</strong> <span id="displayBinId"></span></p>
                             <p><strong>Location:</strong> <span id="displayLocation"></span></p>
@@ -116,27 +116,28 @@
 
             // Generate QR URL
             const baseUrl = window.location.origin;
-            const qrUrl = `${baseUrl}/client-dashboard/${binId}`;
+            const qrUrl = `${baseUrl}/bin-details/${binId}?location=${encodeURIComponent(location)}`;
 
             // Display QR code
-            const qrDisplay = document.getElementById('qrDisplay');
-            qrDisplay.style.display = 'block';
-
-            // Update display information
-            document.getElementById('displayBinId').textContent = binId;
-            document.getElementById('displayLocation').textContent = location;
-
-            // Generate QR code
-            const qrcode = document.getElementById('qrcode');
-            qrcode.innerHTML = ''; // Clear previous QR code
-            QRCode.toCanvas(qrcode, qrUrl, {
-                width: 250,
-                margin: 1,
-                color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                }
+            const qrCodeDiv = document.getElementById('qrCode');
+            qrCodeDiv.innerHTML = '';
+            new QRCode(qrCodeDiv, {
+                text: qrUrl,
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
             });
+
+            // Show bin information
+            document.getElementById('binInfo').innerHTML = `
+                <div class="alert alert-info">
+                    <h5>Bin Information</h5>
+                    <p><strong>Bin ID:</strong> ${binId}</p>
+                    <p><strong>Location:</strong> ${location}</p>
+                </div>
+            `;
 
             // Save to database
             try {

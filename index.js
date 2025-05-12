@@ -1579,6 +1579,53 @@ app.get('/api/admin/bins', authenticateToken, async (req, res) => {
     }
 });
 
+// Bin Details Endpoint for QR Code Scanning
+app.get('/api/bin-details/:binId', async (req, res) => {
+    try {
+        const { binId } = req.params;
+
+        // Get bin details from Supabase
+        const { data: bin, error: binError } = await supabase
+            .from('bins')
+            .select(`
+                *,
+                users:assigned_user (
+                    name,
+                    email
+                )
+            `)
+            .eq('bin_id', binId)
+            .single();
+
+        if (binError) {
+            throw binError;
+        }
+
+        if (!bin) {
+            return res.status(404).json({ error: 'Bin not found' });
+        }
+
+        // Format the response
+        const response = {
+            bin_id: bin.bin_id,
+            location: bin.location,
+            waste_level: bin.waste_level,
+            is_active: bin.is_active,
+            last_pickup: bin.last_pickup,
+            last_update: bin.last_update,
+            assigned_user: bin.users ? {
+                name: bin.users.name,
+                email: bin.users.email
+            } : null
+        };
+
+        res.json(response);
+    } catch (error) {
+        console.error('Error fetching bin details:', error);
+        res.status(500).json({ error: 'Failed to fetch bin details' });
+    }
+});
+
 // Catch-all route for SPA - must be after all other routes
 app.get('*', (req, res) => {
     try {

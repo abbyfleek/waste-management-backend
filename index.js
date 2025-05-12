@@ -311,7 +311,7 @@ app.get('/api/confirm-email', async (req, res) => {
         }
 
         // Redirect to login page with success message
-        res.redirect(`${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/login?message=Email confirmed successfully! You can now login.`);
+        res.redirect(`${process.env.FRONTEND_URL || 'https://waste-management-backend-3zikhxwc9-abbyfleeks-projects.vercel.app'}/login?message=Email confirmed successfully! You can now login.`);
     } catch (error) {
         console.error('Email confirmation error:', error);
         res.status(500).json({ error: 'Failed to confirm email' });
@@ -537,7 +537,7 @@ app.post('/api/reset-password', async (req, res) => {
         }
 
         const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app'}/reset-password`
+            redirectTo: `${process.env.FRONTEND_URL || 'https://waste-management-backend-3zikhxwc9-abbyfleeks-projects.vercel.app'}/reset-password`
         });
         
         if (error) {
@@ -751,7 +751,7 @@ app.post('/api/save-qr', async (req, res) => {
         }
 
         // Generate QR URL
-        const baseUrl = process.env.FRONTEND_URL || 'https://waste-management-backend-d3uu.vercel.app';
+        const baseUrl = process.env.FRONTEND_URL || 'https://waste-management-backend-3zikhxwc9-abbyfleeks-projects.vercel.app';
         const qrUrl = `${baseUrl}/client-dashboard/${binId}`;
 
         // Save to database

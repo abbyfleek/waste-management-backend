@@ -1285,10 +1285,10 @@ app.post('/api/assign-bin-by-email', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'User not found' });
         }
 
-        // Assign bin to user
+        // Assign bin to user using the correct column name 'assigned_user_id'
         const { error: assignError } = await supabase
             .from('bins')
-            .update({ user_id: user.id })
+            .update({ assigned_user_id: user.id })
             .eq('bin_id', bin_id);
 
         if (assignError) {
